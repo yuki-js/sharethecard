@@ -25,6 +25,7 @@
   "dependencies": {
     "@remote-apdu/shared": "0.1.0",
     "@aokiapp/jsapdu-interface": "^0.0.2",
+    "@aokiapp/jsapdu-over-ip": "file:../../research/jsapdu-over-ip",
     "chalk": "^5.3.0",
     "undici": "^6.19.7",
     "ws": "^8.18.0",

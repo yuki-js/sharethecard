@@ -1,6 +1,5 @@
 import chalk from 'chalk';
-import { fetch } from 'undici';
-import { logVerbose } from '../lib.js';
+import { ControllerClient } from '../lib/index.js';
 
 export type ListCommandArgs = {
   router?: string;
@@ -9,44 +8,42 @@ export type ListCommandArgs = {
 };
 
 /**
- * List command implementation extracted from CLI.
- * Fetches Cardhost list from Router with bearer authentication.
+ * List command implementation using new ControllerClient library
+ * Lists available Cardhosts from Router
  */
 export async function run(argv: ListCommandArgs): Promise<void> {
   const { router, token, verbose } = argv;
 
   if (!router || !token) {
-    // eslint-disable-next-line no-console
     console.error(chalk.red('Missing required options: --router, --token'));
     process.exitCode = 2;
     return;
   }
 
   try {
-    const res = await fetch(`${router.replace(/\/$/, '')}/cardhosts`, {
-      headers: { Authorization: `Bearer ${token}` }
+    const client = new ControllerClient({
+      routerUrl: router,
+      token,
+      verbose
     });
 
-    if (!res.ok) {
-      // eslint-disable-next-line no-console
-      console.error(chalk.red(`Failed to list cardhosts: ${res.status} ${res.statusText}`));
-      process.exitCode = 1;
-      return;
+    if (verbose) {
+      console.info(chalk.gray('[verbose] Fetching Cardhost list...'));
     }
 
-    const data = (await res.json()) as Array<{ uuid: string; connected: boolean }>;
-    logVerbose(verbose, 'Fetched cardhosts count:', data.length);
+    const cardhosts = await client.listCardhosts();
 
-    // eslint-disable-next-line no-console
-    console.info(chalk.green(`Cardhosts (${data.length}):`));
+    if (verbose) {
+      console.info(chalk.gray(`[verbose] Fetched ${cardhosts.length} cardhosts`));
+    }
 
-    for (const ch of data) {
-      // eslint-disable-next-line no-console
+    console.info(chalk.green(`Cardhosts (${cardhosts.length}):`));
+
+    for (const ch of cardhosts) {
       console.info(`- ${ch.uuid}  ${ch.connected ? chalk.green('online') : chalk.gray('offline')}`);
     }
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.error(chalk.red(`Network error: ${(e as Error).message}`));
+  } catch (error) {
+    console.error(chalk.red(`Failed: ${(error as Error).message}`));
     process.exitCode = 1;
   }
 }

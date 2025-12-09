@@ -33,3 +33,6 @@ packages/**/src/**/*.d.ts
 
 # Keep manually maintained ambient type stubs in src/types
 !packages/**/src/types/**/*.d.ts
+
+# research directory
+research

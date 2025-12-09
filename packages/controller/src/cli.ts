@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
- * Controller CLI
- * Refactor: delegate command implementations to modular handlers in src/commands/.
- * Spec: docs/what-to-make.md (Section 3.1)
+ * Controller CLI - Runtime Wrapper
+ * Thin CLI layer around ControllerClient library
+ *
+ * This is the "下駄" (runtime wrapper) for the library
+ * Spec: docs/what-to-make.md Section 3.1 & 3.5
  */
 
 import yargs from 'yargs';

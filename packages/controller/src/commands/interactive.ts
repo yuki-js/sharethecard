@@ -1,14 +1,6 @@
 import chalk from 'chalk';
 import { createInterface } from 'node:readline';
-import {
-  logVerbose,
-  parseApduHexOrThrow,
-  establishSession,
-  upgradeToWebSocket,
-  prepareSessionKey,
-  sendApduWithEncryption,
-  type ControllerSession
-} from '../lib.js';
+import { ControllerClient, CommandApdu } from '../lib/index.js';
 
 export type InteractiveCommandArgs = {
   router?: string;
@@ -18,69 +10,110 @@ export type InteractiveCommandArgs = {
 };
 
 /**
- * Interactive command implementation extracted from CLI.
- * Provides a REPL-like interface to send multiple APDU commands.
+ * Interactive command using new ControllerClient library
+ * Provides REPL-like interface for multiple APDU commands
  */
 export async function run(argv: InteractiveCommandArgs): Promise<void> {
   const { router, cardhost, token, verbose } = argv;
 
   if (!router || !cardhost || !token) {
-    // eslint-disable-next-line no-console
     console.error(chalk.red('Missing required options: --router, --cardhost, --token'));
     process.exitCode = 2;
     return;
   }
 
+  const client = new ControllerClient({
+    routerUrl: router,
+    token,
+    cardhostUuid: cardhost,
+    verbose
+  });
+
   try {
-    const session: ControllerSession = await establishSession(router, cardhost, token, verbose);
-    await upgradeToWebSocket(router, session, verbose);
+    if (verbose) {
+      console.info(chalk.gray('[verbose] Connecting...'));
+    }
 
-    await prepareSessionKey(session);
+    await client.connect(cardhost);
 
-    // eslint-disable-next-line no-console
-    console.info(chalk.cyan('Interactive mode. Type "send <APDU_HEX>" or "exit".'));
+    console.info(chalk.cyan('Interactive mode. Commands:'));
+    console.info(chalk.cyan('  send <APDU_HEX>  - Send APDU command'));
+    console.info(chalk.cyan('  exit, quit       - Exit interactive mode'));
+    console.info();
 
-    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    const prompt = () => { rl.setPrompt('> '); rl.prompt(); };
+    const rl = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      terminal: true
+    });
+    
+    const prompt = () => {
+      rl.setPrompt('> ');
+      rl.prompt();
+    };
 
     rl.on('line', async (line) => {
       const trimmed = line.trim();
+      
       if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit') {
         rl.close();
-        session.ws?.close();
         return;
       }
 
       if (trimmed.toLowerCase().startsWith('send ')) {
         const hex = trimmed.slice(5).trim();
         try {
-          parseApduHexOrThrow(hex);
-          logVerbose(verbose, 'Interactive send:', hex);
-          await sendApduWithEncryption(hex, session, verbose);
-          // Wait for response
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        } catch (e) {
-          // eslint-disable-next-line no-console
-          console.error(chalk.red((e as Error).message));
+          // Parse hex string
+          const cleaned = hex.replace(/\s+/g, '');
+          if (!/^[0-9a-fA-F]*$/.test(cleaned) || cleaned.length % 2 !== 0) {
+            throw new Error('Invalid APDU hex format');
+          }
+
+          const bytes = new Uint8Array(cleaned.length / 2);
+          for (let i = 0; i < cleaned.length; i += 2) {
+            bytes[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
+          }
+
+          const command = CommandApdu.fromUint8Array(bytes);
+
+          if (verbose) {
+            console.info(chalk.gray(`[verbose] Sending: ${hex}`));
+          }
+
+          const response = await client.transmit(command);
+
+          // Display response
+          if (response.data.length > 0) {
+            const dataHex = Array.from(response.data, b =>
+              b.toString(16).padStart(2, '0')
+            ).join('').toUpperCase();
+            console.info(chalk.green(`< Data: ${dataHex}`));
+          }
+          
+          const sw = response.sw.toString(16).padStart(4, '0').toUpperCase();
+          console.info(chalk.green(`< SW: ${sw}`));
+
+        } catch (error) {
+          console.error(chalk.red(`Error: ${(error as Error).message}`));
         }
-      } else {
-        // eslint-disable-next-line no-console
+      } else if (trimmed.length > 0) {
         console.error(chalk.red('Unknown command. Use "send <APDU_HEX>" or "exit".'));
       }
+      
       prompt();
     });
 
-    rl.on('close', () => {
-      // eslint-disable-next-line no-console
-      console.info(chalk.green('Interactive session ended.'));
-      session.ws?.close();
+    rl.on('close', async () => {
+      console.info(chalk.green('\nInteractive session ended.'));
+      await client.disconnect();
       process.exit(0);
     });
 
     prompt();
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error(chalk.red(`Interactive mode failed: ${(err as Error).message}`));
+
+  } catch (error) {
+    console.error(chalk.red(`Interactive mode failed: ${(error as Error).message}`));
+    await client.disconnect().catch(() => {});
     process.exitCode = 1;
   }
 }

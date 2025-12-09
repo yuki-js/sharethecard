@@ -1,5 +1,5 @@
 /**
- * Router Package - Main Entry Point
+ * Controller Package - Main Entry Point
  * Exports library API for programmatic use
  */
 
