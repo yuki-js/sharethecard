@@ -287,19 +287,23 @@ Cardhost と同じプロセスで動作し、Cardhost 所有者向けの監視�
 
 ### 4.2 Controller ↔ Router
 
-#### 4.2.1 認証フロー
+#### 4.2.1 認証フロー（公開鍵チャレンジ-レスポンス）
 
-1. Controller がベアラートークンを含む接続要求を送信
-2. Router がトークンを検証
-3. 認証成功後、セッショントークンを発行
-4. WebSocket アップグレード時にセッショントークンを使用
+1. Controller が公開鍵を含む接続要求を送信
+2. Router がチャレンジを発行
+3. Controller が秘密鍵で署名したレスポンスを返送
+4. Router が署名を検証して認証完了
+5. **認証後**、Controller が cardhost UUID を指定してセッション作成
+6. Router がセッショントークンを発行（識別用、認証ではない）
+7. WebSocket 接続時にセッショントークンとController IDを使用
 
 #### 4.2.2 通信パターン
 
-- **初期接続**: REST API（POST /controller/connect）
-- **Cardhost 検索**: REST API（GET /cardhosts）
-- **セッション確立**: REST API（POST /sessions）
-- **APDU送受信**: WebSocket（暗号化されたペイロード転送）
+- **認証開始**: REST API（POST /controller/auth/initiate）
+- **認証完了**: REST API（POST /controller/auth/verify）
+- **Cardhost 検索**: REST API（GET /controller/cardhosts）
+- **セッション作成**: REST API（POST /controller/sessions） - 識別用
+- **データ送受信**: WebSocket（暗号化されたペイロード転送）
 
 ### 4.3 Controller ↔ Cardhost（E2E）
 
@@ -375,14 +379,22 @@ interface EncryptedMessage {
 #### 5.2.2 Controller 認証
 
 ```
-方式: ベアラートークン（JWT または独自トークン）
+方式: 公開鍵認証 + チャレンジ-レスポンス（Cardhostと同じ）
 
 フロー:
-1. Controller → Router: Bearer Token
-2. Router: Token検証（署名確認、有効期限確認）
-3. Router → Controller: Session Token
-4. WebSocket接続時: Session Token使用
+1. Controller → Router: 公開鍵 + Controller ID
+2. Router → Controller: チャレンジ（ランダムナンス）
+3. Controller → Router: Sign(PrivateKey, Challenge)
+4. Router: Verify(PublicKey, Challenge, Signature)
+5. 認証完了後、Controller が cardhost UUID を指定してセッション作成
+6. Router → Controller: Session Token（識別用、認証ではない）
+7. WebSocket接続時: Controller ID + Session Token使用
 ```
+
+**重要な変更点:**
+- Bearer token方式を廃止
+- 公開鍵暗号（Ed25519）によるチャレンジ-レスポンス認証に統一
+- 認証（誰か）とセッション識別（何を）を明確に分離
 
 ### 5.3 メッセージ認証
 
