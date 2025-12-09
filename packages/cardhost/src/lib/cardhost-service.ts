@@ -97,9 +97,25 @@ export class CardhostService {
    * 遅延初期化：Controller接続時に呼ばれる
    */
   private async initializeTransport(): Promise<void> {
-    if (this.transport || this.adapter) {
-      logger.warn("Transport already initialized");
+    // Check if we need to reinitialize
+    const needsReinit =
+      !this.transport ||
+      !this.adapter ||
+      !this.transport.isConnected();
+
+    if (!needsReinit) {
+      logger.info("Transport/adapter already active, skipping");
       return;
+    }
+
+    // Cleanup existing resources if disconnected
+    if (this.adapter) {
+      await this.adapter.stop();
+      this.adapter = null;
+    }
+    if (this.transport) {
+      await this.transport.stop();
+      this.transport = null;
     }
 
     logger.info("Controller connected, initializing transport/adapter");
@@ -112,8 +128,8 @@ export class CardhostService {
     // アプリケーション層：jsapdu-over-ip RPC処理
     this.adapter = new SmartCardPlatformAdapter(this.platform, this.transport);
 
-    // Start transport & adapter
-    await this.transport.start();
+    // Start adapter (which internally starts transport)
+    // Note: SmartCardPlatformAdapter.start() calls transport.start() internally
     await this.adapter.start();
 
     logger.info("Transport/adapter initialized, ready for RPC");

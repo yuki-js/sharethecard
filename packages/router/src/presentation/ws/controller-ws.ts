@@ -65,6 +65,8 @@ export async function handleControllerWebSocket(
   ws.on("close", () => {
     if (state.sessionToken) {
       router.transportUseCase.unregisterController(state.sessionToken);
+      // Also revoke the session to prevent stale session lookup
+      router.controllerUseCase.revokeSession(state.sessionToken);
     }
     logger.info("Controller WebSocket connection closed");
   });

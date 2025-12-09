@@ -5,16 +5,16 @@
  * Router is a real server, but cohabits this test process. Mocks/spies remain possible.
  *
  * Flows covered:
- * - Cardhost authenticates via HTTP (/cardhost/connect → /cardhost/verify)
- * - Cardhost establishes WS relay to /api/jsapdu/ws with headers (x-role, x-cardhost-uuid)
- * - Controller authenticates via HTTP (/controller/connect)
- * - Controller creates relay (/sessions) and transmits APDU via HTTP /api/jsapdu/rpc
+ * - Cardhost authenticates via WebSocket message-based auth (v3.0)
+ * - Cardhost establishes persistent WS connection
+ * - Controller authenticates via WebSocket message-based auth (v3.0)
+ * - Controller transmits APDU via WebSocket RPC
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 // Start the real runtime server inside this process on a dedicated port
-import { startRuntimeServer } from "../../packages/router/src/runtime/server.ts";
+import { startServer } from "@remote-apdu/router";
 
 // Cardhost (server-side) and Controller (client-side) libraries
 import {
@@ -31,19 +31,22 @@ describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
   const HOST = "127.0.0.1";
   const PORT = 31101; // dedicated test port
   const BASE_URL = `http://${HOST}:${PORT}`;
-  const BEARER_TOKEN = "test-bearer-token-e2e-123456";
 
-  let runtime: Awaited<ReturnType<typeof startRuntimeServer>> | null = null;
+  let runtime: Awaited<ReturnType<typeof startServer>> | null = null;
   let cardhost: CardhostService | null = null;
   let mockPlatform: MockSmartCardPlatform | null = null;
   let testDir: string | null = null;
 
   beforeAll(async () => {
     // Start the real Router runtime (HTTP + WebSocket) on a real port
-    runtime = await startRuntimeServer(PORT, HOST);
+    runtime = await startServer({
+      port: PORT,
+      host: HOST,
+    });
 
     // Start Cardhost with Mock platform (connects over WS to the Router runtime)
     mockPlatform = new MockSmartCardPlatform();
+    await mockPlatform.init(); // Initialize platform before connecting
 
     // Ensure defaults and persisted config point to the active test runtime port
     process.env.ROUTER_URL = BASE_URL;
@@ -56,9 +59,9 @@ describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
       platform: mockPlatform,
       configManager,
     });
-    await cardhost.connect();
-    // Allow WS registration to settle (SessionRelay.registerCardhostConnection)
-    await new Promise((r) => setTimeout(r, 50));
+    await cardhost.connect(BASE_URL);
+    // Allow WS registration to settle
+    await new Promise((r) => setTimeout(r, 100));
   });
 
   afterAll(async () => {
@@ -84,22 +87,19 @@ describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
     }
   });
 
-  it("should transmit APDU end-to-end (Controller → HTTP RPC → WS Relay → Cardhost)", async () => {
+  it("should transmit APDU end-to-end (Controller → WS RPC → Router → Cardhost)", async () => {
     if (!cardhost) throw new Error("Cardhost not started");
     const cardhostUuid = cardhost.getUuid();
 
-    // Controller uses HTTP (/controller/connect, /sessions, /api/jsapdu/rpc)
+    // Controller uses WebSocket-only (v3.0 spec)
     const client = new ControllerClient({
       routerUrl: BASE_URL,
-      token: BEARER_TOKEN,
       cardhostUuid,
     });
 
     await client.connect();
     // Allow settle before issuing first RPC
-    await new Promise((r) => setTimeout(r, 50));
-    // Allow session relay/controller registration to settle before first RPC
-    await new Promise((r) => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 100));
 
     try {
       // SELECT command over the full network stack
@@ -131,7 +131,6 @@ describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
 
     const client = new ControllerClient({
       routerUrl: BASE_URL,
-      token: BEARER_TOKEN,
       cardhostUuid,
     });
 

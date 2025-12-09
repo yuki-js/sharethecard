@@ -82,9 +82,28 @@ export class WsAuthenticator {
           const msg = JSON.parse(data.toString());
           if (!this.authenticated) {
             await authRouter.route(ctx, msg);
+          } else {
+            // 認証後: controller-connected メッセージのみをハンドル
+            // RPC メッセージ（rpc-request等）は RouterServerTransport が処理
+            if (msg.type === "controller-connected") {
+              logger.info("Controller connected notification received");
+              if (this.config.onControllerConnected) {
+                try {
+                  await this.config.onControllerConnected();
+                } catch (err) {
+                  logger.error("Error in onControllerConnected callback", err as Error);
+                }
+              }
+            }
+            // RPC messages (rpc-request, rpc-response, rpc-event) are handled by RouterServerTransport
+            // which has its own message listener
           }
         } catch (err) {
-          reject(err);
+          if (!this.authenticated) {
+            reject(err);
+          } else {
+            logger.error("Error handling message after authentication", err as Error);
+          }
         }
       });
 
@@ -143,33 +162,6 @@ export class WsAuthenticator {
   private async handleAuthSuccess(ctx: WsContext, msg: any): Promise<void> {
     this.authenticated = true;
     logger.info("Authentication successful", { uuid: this.uuid });
-
-    // 認証後、controller-connected メッセージを待機
-    if (this.config.onControllerConnected) {
-      this.setupControllerConnectedListener(ctx);
-    }
-  }
-
-  /**
-   * Controller接続通知リスナー設定
-   */
-  private setupControllerConnectedListener(ctx: WsContext): void {
-    const onMessage = async (data: any) => {
-      try {
-        const msg = JSON.parse(data.toString());
-        if (msg.type === "controller-connected") {
-          logger.info("Controller connected notification received");
-          // コールバック実行（遅延初期化）
-          if (this.config.onControllerConnected) {
-            await this.config.onControllerConnected();
-          }
-        }
-      } catch (err) {
-        // Ignore parse errors
-      }
-    };
-
-    this.ws!.on("message", onMessage);
   }
 
   /**
@@ -313,9 +305,10 @@ export class RouterServerTransport implements ServerTransport {
         const request = message.payload as RpcRequest;
         const response = await this.requestHandler(request);
 
-        // Send response back
+        // Send response back with original message ID for correlation
         const responseEnvelope = {
           type: "rpc-response",
+          id: message.id, // Preserve WebSocket-level message ID
           payload: response,
         };
 

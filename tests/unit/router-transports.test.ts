@@ -1,59 +1,62 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+/**
+ * Unit Tests for Router Transport Layer
+ * 
+ * Tests Transport classes with mocked WebSocket/dependencies
+ * Validates message handling, event emission, and error cases
+ * 
+ * Spec: docs/what-to-make.md Section 6.2.1 - ユニットテスト
+ */
 
-// RouterClientTransport unit tests (Controller side)
-const mockFetch = vi.fn();
-vi.mock("undici", () => ({
-  fetch: mockFetch,
-}));
-
-function mkResponse(ok: boolean, status: number, body: any) {
-  return {
-    ok,
-    status,
-    statusText: ok ? "OK" : "ERROR",
-    async json() {
-      return body;
-    },
-    async text() {
-      return typeof body === "string" ? body : JSON.stringify(body);
-    },
-  };
-}
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 describe("RouterClientTransport (Controller) - Unit", () => {
   beforeEach(() => {
-    mockFetch.mockReset();
+    vi.resetModules();
   });
 
-  it("call() throws on invalid RpcResponse format from server", async () => {
-    const { RouterClientTransport } = await import("@remote-apdu/controller");
+  it("call() requires connected transport", async () => {
+    const { RouterClientTransport, WsAuthenticator } = await import("@remote-apdu/controller");
+
+    // Mock authenticator
+    const mockAuth = {
+      getWebSocket: vi.fn(() => ({ readyState: 1 })),
+    } as any;
 
     const transport = new RouterClientTransport({
-      rpcEndpoint: "http://router.example.com/api/jsapdu/rpc",
-      sessionToken: "sess_456",
-      cardhostUuid: "uuid-def",
+      authenticator: mockAuth,
     });
 
-    const req = { id: "req-2", method: "platform.getDeviceInfo", params: [] };
+    const req = { id: "req-1", method: "platform.init", params: [] };
 
-    mockFetch.mockImplementation(async () =>
-      mkResponse(true, 200, { notAnRpcResponse: true }),
-    );
+    // Should throw because transport not started
+    await expect(transport.call(req as any)).rejects.toThrow("Transport not connected");
+  });
 
-    await expect(transport.call(req as any)).rejects.toThrow(
-      /Invalid RpcResponse format/i,
-    );
+  it("isConnected() returns false when not started", async () => {
+    const { RouterClientTransport } = await import("@remote-apdu/controller");
+
+    const mockAuth = {
+      getWebSocket: vi.fn(),
+    } as any;
+
+    const transport = new RouterClientTransport({
+      authenticator: mockAuth,
+    });
+
+    expect(transport.isConnected()).toBe(false);
   });
 });
 
-// RouterServerTransport unit tests (Cardhost side)
 describe("RouterServerTransport (Cardhost) - Unit", () => {
   it("emitEvent() sends rpc-event envelope when ws is OPEN", async () => {
     const { RouterServerTransport } = await import("@remote-apdu/cardhost");
 
+    const mockAuth = {
+      getWebSocket: vi.fn(),
+    } as any;
+
     const transport = new RouterServerTransport({
-      routerUrl: "ws://router.example.com",
-      cardhostUuid: "uuid-abc",
+      authenticator: mockAuth,
     });
 
     const sendSpy = vi.fn();
@@ -73,9 +76,12 @@ describe("RouterServerTransport (Cardhost) - Unit", () => {
   it("handleMessage() processes rpc-request and replies with rpc-response using request handler", async () => {
     const { RouterServerTransport } = await import("@remote-apdu/cardhost");
 
+    const mockAuth = {
+      getWebSocket: vi.fn(),
+    } as any;
+
     const transport = new RouterServerTransport({
-      routerUrl: "ws://router.example.com",
-      cardhostUuid: "uuid-abc",
+      authenticator: mockAuth,
     });
 
     const sendSpy = vi.fn();
@@ -92,6 +98,7 @@ describe("RouterServerTransport (Cardhost) - Unit", () => {
     // Invoke private method directly (TS private not enforced at runtime)
     const envelope = {
       type: "rpc-request",
+      id: "msg-123", // WebSocket message ID
       payload: { id: "req-xyz", method: "platform.init", params: [false] },
     };
     await (transport as any).handleMessage(JSON.stringify(envelope));
@@ -100,7 +107,22 @@ describe("RouterServerTransport (Cardhost) - Unit", () => {
     expect(sendSpy).toHaveBeenCalledTimes(1);
     const sent = JSON.parse(sendSpy.mock.calls[0][0]);
     expect(sent.type).toBe("rpc-response");
+    expect(sent.id).toBe("msg-123"); // WebSocket message ID should be preserved
     expect(sent.payload.id).toBe("req-xyz");
     expect(sent.payload.result).toBeNull();
+  });
+
+  it("isConnected() returns false when not started", async () => {
+    const { RouterServerTransport } = await import("@remote-apdu/cardhost");
+
+    const mockAuth = {
+      getWebSocket: vi.fn(),
+    } as any;
+
+    const transport = new RouterServerTransport({
+      authenticator: mockAuth,
+    });
+
+    expect(transport.isConnected()).toBe(false);
   });
 });

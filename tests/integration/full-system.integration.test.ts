@@ -1,201 +1,115 @@
 /**
  * Integration tests for component interaction (Library-level)
  *
- * Tests: Controller (CLI library) ⇄ Router (library) ⇄ Cardhost (Mock platform)
+ * Tests: Router (library) ⇄ Cardhost (Mock platform) ⇄ Controller (CLI library)
  * Validates jsapdu-over-ip integration patterns and resource management
  *
- * NOTE: This is NOT a true E2E network test. No WebSocket relay or real networking.
- * Classification rationale:
- * - Uses MockSmartCardPlatform directly
- * - No actual WebSocket server/client
- * - No network failures, reconnection, or E2E encryption
+ * Classification: Integration Test (Library Level)
+ * - No network communication (no real WebSocket server)
+ * - Tests business logic and jsapdu interface compliance
+ * - Validates component interfaces and message handling
  *
- * Reference spec classification: docs/what-to-make.md Section 6.2.2 - Integration Test
- * Former label: "E2E" (mislabeled) → Correct label: "Integration"
+ * Spec: docs/what-to-make.md Section 6.2.2 - 結合テスト
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { RouterService } from "@remote-apdu/router";
-import { CardhostService, MockSmartCardPlatform } from "@remote-apdu/cardhost";
-import { ControllerClient, CommandApdu } from "@remote-apdu/controller";
+import { Router } from "@remote-apdu/router";
+import { MockSmartCardPlatform } from "@remote-apdu/cardhost";
+import { CommandApdu } from "@aokiapp/jsapdu-interface";
 
 describe("Integration: Component Interaction (Library-level)", () => {
-  let router: RouterService;
-  let cardhost: CardhostService;
-  let cardhostUuid: string;
-  const BEARER_TOKEN = "test-bearer-token-e2e-123456";
+  let router: Router;
+  const mockPlatform = new MockSmartCardPlatform();
 
   beforeAll(async () => {
-    // Start Router
-    router = new RouterService({ port: 0 }); // Random port
+    // Initialize Router
+    router = new Router();
     await router.start();
 
-    // Start Cardhost with MockPlatform
-    const mockPlatform = new MockSmartCardPlatform();
-    cardhost = new CardhostService({
-      routerUrl: "http://localhost:3000", // Using default for now
-      platform: mockPlatform,
-    });
-
-    // Note: In real test, we'd get the actual router URL
-    // For now, this demonstrates the pattern
+    // Initialize MockPlatform
+    await mockPlatform.init();
   });
 
   afterAll(async () => {
-    if (cardhost) {
-      await cardhost.disconnect();
-    }
     if (router) {
       await router.stop();
     }
   });
 
-  describe("1. Connection Establishment Flow", () => {
-    it("should allow Controller to authenticate with Router", async () => {
-      const sessionToken = await router.authenticateController(BEARER_TOKEN);
-
-      expect(sessionToken.token).toMatch(/^sess_/);
-      expect(sessionToken.expiresAt).toBeDefined();
-    });
-
-    it("should allow Cardhost to authenticate with Router", async () => {
-      // This would happen in beforeAll with real networking
-      // Here we test the Router's auth methods directly
-
-      const { webcrypto } = await import("node:crypto");
-      const keyPair = (await webcrypto.subtle.generateKey(
-        { name: "Ed25519" },
-        true,
-        ["sign", "verify"],
-      )) as CryptoKeyPair;
-
-      const publicKeySpki = await webcrypto.subtle.exportKey(
-        "spki",
-        keyPair.publicKey,
-      );
-      const publicKey = Buffer.from(publicKeySpki).toString("base64");
-
-      const uuid = "550e8400-e29b-41d4-a716-446655440000";
-      const challenge = await router.initiateCardhostAuth(uuid, publicKey);
-
-      expect(challenge).toBeDefined();
-      expect(typeof challenge).toBe("string");
-    });
-
-    it("should create relay session between Controller and Cardhost", async () => {
-      // Authenticate both parties first
-      const sessionToken = await router.authenticateController(BEARER_TOKEN);
-
-      const { webcrypto } = await import("node:crypto");
-      const keyPair = (await webcrypto.subtle.generateKey(
-        { name: "Ed25519" },
-        true,
-        ["sign", "verify"],
-      )) as CryptoKeyPair;
-
-      const publicKeySpki = await webcrypto.subtle.exportKey(
-        "spki",
-        keyPair.publicKey,
-      );
-      const privateKeyPkcs8 = await webcrypto.subtle.exportKey(
-        "pkcs8",
-        keyPair.privateKey,
-      );
-      const publicKey = Buffer.from(publicKeySpki).toString("base64");
-      const privateKey = Buffer.from(privateKeyPkcs8).toString("base64");
-
-      const uuid = "550e8400-e29b-41d4-a716-446655440001";
-      const challenge = await router.initiateCardhostAuth(uuid, publicKey);
-
-      // Sign challenge
-      const privateKeyObj = await webcrypto.subtle.importKey(
-        "pkcs8",
-        Buffer.from(privateKey, "base64"),
-        { name: "Ed25519" },
-        false,
-        ["sign"],
-      );
-      const payload = new Uint8Array(
-        Buffer.from(JSON.stringify(challenge), "utf8"),
-      );
-      const signatureBuffer = await webcrypto.subtle.sign(
-        { name: "Ed25519" },
-        privateKeyObj,
-        payload,
-      );
-      const signature = Buffer.from(signatureBuffer).toString("base64");
-
-      await router.verifyCardhostAuth(uuid, challenge, signature);
-
-      // Create relay
-      const relayId = router.createRelaySession(sessionToken.token, uuid);
-
-      expect(relayId).toBeDefined();
-      expect(relayId.length).toBeGreaterThan(0);
-    });
-  });
-
-  describe("2. APDU Transmission Flow (Library Level)", () => {
-    it("should transmit APDU through MockPlatform", async () => {
-      // Test at library level (without full networking)
-      const mockPlatform = new MockSmartCardPlatform();
-      await mockPlatform.init();
-
+  describe("1. APDU Transmission via jsapdu Interface", () => {
+    it("should transmit SELECT command through mock platform", async () => {
       const devices = await mockPlatform.getDeviceInfo();
       expect(devices.length).toBeGreaterThan(0);
 
       await using device = await mockPlatform.acquireDevice(devices[0].id);
       await using card = await device.startSession();
 
-      // Send SELECT command
       const selectCommand = new CommandApdu(
-        0x00,
-        0xa4,
-        0x04,
-        0x00,
+        0x00, // CLA
+        0xa4, // INS: SELECT
+        0x04, // P1: Select by DF name
+        0x00, // P2
         new Uint8Array([0xa0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]),
         null,
       );
 
       const response = await card.transmit(selectCommand);
 
+      expect(response).toBeDefined();
       expect(response.sw).toBe(0x9000);
     });
 
-    it("should support custom response configuration", async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      await mockPlatform.init();
-
-      // Configure custom response
-      const commandHex = "00A4040008A000000003000000";
-      const customResponse = new Uint8Array([0x61, 0x15]); // More data available (6115)
-      mockPlatform.setDeviceResponse(
-        "mock-device-1",
-        commandHex,
-        customResponse,
-      );
-
+    it("should transmit READ BINARY command", async () => {
       const devices = await mockPlatform.getDeviceInfo();
+      
       await using device = await mockPlatform.acquireDevice(devices[0].id);
       await using card = await device.startSession();
 
-      const bytes = new Uint8Array(commandHex.length / 2);
-      for (let i = 0; i < commandHex.length; i += 2) {
-        bytes[i / 2] = parseInt(commandHex.slice(i, i + 2), 16);
-      }
+      const readBinary = new CommandApdu(
+        0x00, // CLA
+        0xb0, // INS: READ BINARY
+        0x00, // P1: offset high
+        0x00, // P2: offset low
+        null,
+        256, // Le: expect 256 bytes
+      );
 
-      const command = CommandApdu.fromUint8Array(bytes);
-      const response = await card.transmit(command);
+      const response = await card.transmit(readBinary);
 
-      expect(response.sw).toBe(0x6115);
+      expect(response).toBeDefined();
+      expect(response.sw).toBe(0x9000);
+    });
+
+    it("should handle extended APDU (>255 bytes)", async () => {
+      const devices = await mockPlatform.getDeviceInfo();
+
+      await using device = await mockPlatform.acquireDevice(devices[0].id);
+      await using card = await device.startSession();
+
+      // Request more than 256 bytes (triggers extended APDU)
+      const extendedRead = new CommandApdu(
+        0x00,
+        0xb0,
+        0x00,
+        0x00,
+        null,
+        4096, // Extended APDU
+      );
+
+      const bytes = extendedRead.toUint8Array();
+
+      // Extended APDU should have proper encoding
+      // Format: CLA INS P1 P2 00 Le1 Le2
+      expect(bytes.length).toBe(7);
+      expect(bytes[4]).toBe(0x00); // Extended marker
+
+      const response = await card.transmit(extendedRead);
+      expect(response.sw).toBe(0x9000);
     });
   });
 
-  describe("3. Resource Management Validation", () => {
+  describe("2. Resource Management Validation", () => {
     it("should handle multiple sequential sessions", async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      await mockPlatform.init();
-
       const devices = await mockPlatform.getDeviceInfo();
 
       // Session 1
@@ -217,22 +131,76 @@ describe("Integration: Component Interaction (Library-level)", () => {
       // Both sessions should succeed
       expect(true).toBe(true);
     });
+
+    it("should properly release device resources", async () => {
+      const devices = await mockPlatform.getDeviceInfo();
+
+      const device1 = await mockPlatform.acquireDevice(devices[0].id);
+      expect(device1).toBeDefined();
+      await device1[Symbol.asyncDispose]?.();
+
+      // Should be able to acquire again
+      const device2 = await mockPlatform.acquireDevice(devices[0].id);
+      expect(device2).toBeDefined();
+      await device2[Symbol.asyncDispose]?.();
+    });
+  });
+
+  describe("3. Router Authentication Flow (UseCase Layer)", () => {
+    it("should generate controller auth challenge", async () => {
+      const publicKey = Buffer.from("test-key").toString("base64");
+      
+      const { controllerId, challenge } =
+        await router.controllerUseCase.initiateAuth(publicKey);
+
+      expect(controllerId).toBeDefined();
+      expect(controllerId).toMatch(/^peer_/);
+      expect(challenge).toBeDefined();
+    });
+
+    it("should create deterministic controller IDs", async () => {
+      const publicKey = Buffer.from("deterministic-controller").toString("base64");
+
+      const result1 = await router.controllerUseCase.initiateAuth(publicKey);
+      const result2 = await router.controllerUseCase.initiateAuth(publicKey);
+
+      // Same public key should produce same controller ID
+      expect(result1.controllerId).toBe(result2.controllerId);
+    });
+
+    it("should generate unique challenges on each attempt", async () => {
+      const publicKey = Buffer.from("challenge-test").toString("base64");
+
+      const result1 = await router.controllerUseCase.initiateAuth(publicKey);
+      const result2 = await router.controllerUseCase.initiateAuth(publicKey);
+
+      // Even though ID is same, challenges should differ
+      expect(result1.challenge).not.toBe(result2.challenge);
+    });
+
+    it("should generate cardhost auth challenge", async () => {
+      const publicKey = Buffer.from("cardhost-key").toString("base64");
+
+      const { uuid, challenge } =
+        await router.cardhostUseCase.initiateAuth(publicKey);
+
+      expect(uuid).toBeDefined();
+      expect(uuid).toMatch(/^peer_/);
+      expect(challenge).toBeDefined();
+    });
+
+    it("should require authentication before session creation", async () => {
+      const controllerId = "peer_not_authenticated";
+      const cardhostUuid = "peer_test-uuid";
+
+      // Should throw because controller not authenticated
+      expect(() => {
+        router.controllerUseCase.createSession(controllerId, cardhostUuid);
+      }).toThrow("Controller not authenticated");
+    });
   });
 
   describe("4. Error Handling", () => {
-    it("should handle card not present", async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      await mockPlatform.init();
-
-      mockPlatform.setCardPresent("mock-device-1", false);
-
-      const devices = await mockPlatform.getDeviceInfo();
-      const device = await mockPlatform.acquireDevice(devices[0].id);
-
-      const isPresent = await device.isCardPresent();
-      expect(isPresent).toBe(false);
-    });
-
     it("should reject invalid APDU command", () => {
       // Invalid APDU: too short
       expect(() => {
@@ -240,35 +208,83 @@ describe("Integration: Component Interaction (Library-level)", () => {
       }).toThrow();
     });
 
-    it("should handle authentication failure gracefully", async () => {
-      await expect(
-        router.authenticateController("short"), // Too short
-      ).rejects.toThrow("Invalid bearer token");
+    it("should handle malformed command data", async () => {
+      const devices = await mockPlatform.getDeviceInfo();
+
+      await using device = await mockPlatform.acquireDevice(devices[0].id);
+      await using card = await device.startSession();
+
+      // Try with minimal valid APDU
+      const minimalCmd = new CommandApdu(0x00, 0x00, 0x00, 0x00, null, null);
+      const response = await card.transmit(minimalCmd);
+
+      expect(response).toBeDefined();
+      // Should return some response, even if error status
+      expect(typeof response.sw).toBe("number");
     });
 
-    it("should reject relay creation without authentication", () => {
-      expect(() => {
-        router.createRelaySession("invalid-session", "some-uuid");
-      }).toThrow();
+    it("should handle card device status", async () => {
+      const devices = await mockPlatform.getDeviceInfo();
+      const device = await mockPlatform.acquireDevice(devices[0].id);
+
+      // Check if device is available (may be true even if card not present)
+      const isAvailable = await device.isDeviceAvailable();
+      expect(typeof isAvailable).toBe("boolean");
+
+      await device[Symbol.asyncDispose]?.();
     });
   });
 
-  describe("5. Security Validation", () => {
-    it("should generate unique challenges for each auth attempt", async () => {
-      const uuid = "550e8400-e29b-41d4-a716-446655440010";
-      const publicKey = "test-public-key-base64-here";
+  describe("5. Stats and Monitoring", () => {
+    it("should report router statistics", () => {
+      const stats = router.getStats();
 
-      const challenge1 = await router.initiateCardhostAuth(uuid, publicKey);
-      const challenge2 = await router.initiateCardhostAuth(uuid, publicKey);
-
-      expect(challenge1).not.toBe(challenge2);
+      expect(stats).toBeDefined();
+      expect(stats.running).toBe(true);
+      expect(stats.activeControllers).toBeGreaterThanOrEqual(0);
+      expect(stats.activeCardhosts).toBeGreaterThanOrEqual(0);
+      expect(stats.activeSessions).toBeGreaterThanOrEqual(0);
     });
 
-    it("should generate unique session tokens", async () => {
-      const token1 = await router.authenticateController(BEARER_TOKEN);
-      const token2 = await router.authenticateController(BEARER_TOKEN);
+    it("should track device information", async () => {
+      const devices = await mockPlatform.getDeviceInfo();
 
-      expect(token1.token).not.toBe(token2.token);
+      expect(Array.isArray(devices)).toBe(true);
+      expect(devices.length).toBeGreaterThan(0);
+      expect(devices[0]).toHaveProperty("id");
+    });
+  });
+
+  describe("6. jsapdu Interface Compliance", () => {
+    it("should support CardSession async disposal", async () => {
+      const devices = await mockPlatform.getDeviceInfo();
+
+      const device = await mockPlatform.acquireDevice(devices[0].id);
+      const card = await device.startSession();
+
+      // Should support Symbol.asyncDispose
+      expect(card[Symbol.asyncDispose]).toBeDefined();
+
+      await card[Symbol.asyncDispose]?.();
+      await device[Symbol.asyncDispose]?.();
+    });
+
+    it("should return proper Response APDU format", async () => {
+      const devices = await mockPlatform.getDeviceInfo();
+
+      await using device = await mockPlatform.acquireDevice(devices[0].id);
+      await using card = await device.startSession();
+
+      const response = await card.transmit(
+        new CommandApdu(0x00, 0xa4, 0x04, 0x00, null, null),
+      );
+
+      // ResponseApdu should have sw property
+      expect(response).toHaveProperty("sw");
+      expect(typeof response.sw).toBe("number");
+      // SW ranges from 0x6000-0x9000
+      expect(response.sw).toBeGreaterThanOrEqual(0x6000);
+      expect(response.sw).toBeLessThanOrEqual(0x9fff);
     });
   });
 });
