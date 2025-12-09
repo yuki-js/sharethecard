@@ -7,7 +7,13 @@
  * Spec: docs/what-to-make.md Section 3.5 - 共通項
  */
 
-import { CardhostService, MockSmartCardPlatform } from "../lib/index.js";
+import {
+  CardhostService,
+  ConfigManager,
+  MockSmartCardPlatform,
+} from "../lib/index.js";
+
+import { PcscPlatformManager } from "@aokiapp/jsapdu-pcsc";
 
 /**
  * Parse command line arguments
@@ -66,11 +72,14 @@ async function main(): Promise<void> {
   console.log(`Platform: ${useMock ? "Mock" : "PC/SC"}`);
 
   // Create service with optional mock platform
-  const platform = useMock ? new MockSmartCardPlatform() : undefined;
+  const platform = useMock
+    ? new MockSmartCardPlatform()
+    : PcscPlatformManager.getInstance().getPlatform();
 
   const service = new CardhostService({
     routerUrl,
     platform,
+    configManager: new ConfigManager(),
   });
 
   // Connect to Router

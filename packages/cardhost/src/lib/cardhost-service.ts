@@ -13,7 +13,6 @@ import { SmartCardError } from "@aokiapp/jsapdu-interface";
 import { ConfigManager } from "./config-manager.js";
 import { AuthManager } from "./auth-manager.js";
 import { RouterServerTransport } from "./router-transport.js";
-import { MockSmartCardPlatform } from "./mock-platform.js";
 
 export interface CardhostServiceConfig {
   routerUrl: string;

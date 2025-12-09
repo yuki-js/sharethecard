@@ -21,11 +21,12 @@
     "dev": "tsx src/runtime/main.ts"
   },
   "dependencies": {
-    "@remote-apdu/shared": "0.1.0",
     "@aokiapp/jsapdu-interface": "^0.0.2",
     "@aokiapp/jsapdu-over-ip": "file:../../research/jsapdu-over-ip",
-    "express": "^4.21.1",
+    "@aokiapp/jsapdu-pcsc": "^0.0.2",
+    "@remote-apdu/shared": "0.1.0",
     "@types/express": "^4.17.21",
+    "express": "^4.21.1",
     "undici": "^6.19.7",
     "ws": "^8.18.0"
   }
