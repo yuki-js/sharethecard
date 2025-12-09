@@ -168,6 +168,19 @@ export class TransportService {
   }
 
   /**
+   * Send data to cardhost (for notifications, not request/response)
+   */
+  sendToCardhost(cardhostUuid: string, data: unknown): void {
+    const cardhostConn = this.connectionRepo.getCardhost(cardhostUuid);
+    
+    if (!cardhostConn) {
+      throw new Error("Cardhost not connected");
+    }
+
+    cardhostConn.send(data);
+  }
+
+  /**
    * Get connection counts
    */
   getConnectionCounts(): { controllers: number; cardhosts: number } {

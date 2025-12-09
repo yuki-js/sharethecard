@@ -6,7 +6,6 @@ import { parseApduHex } from "@remote-apdu/shared";
 export type ScriptCommandArgs = {
   router?: string;
   cardhost?: string;
-  token?: string;
   file?: string;
   verbose?: boolean;
 };
@@ -16,7 +15,7 @@ export type ScriptCommandArgs = {
  * Executes APDU commands from JSON file: [{ "apdu": "<HEX>" }, ...]
  */
 export async function run(argv: ScriptCommandArgs): Promise<void> {
-  const { file, router, cardhost, token, verbose } = argv;
+  const { file, router, cardhost, verbose } = argv;
 
   if (!file) {
     console.error(chalk.red("Missing required option: --file <path.json>"));
@@ -24,9 +23,9 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
     return;
   }
 
-  if (!router || !cardhost || !token) {
+  if (!router || !cardhost) {
     console.error(
-      chalk.red("Missing required options: --router, --cardhost, --token"),
+      chalk.red("Missing required options: --router, --cardhost"),
     );
     process.exitCode = 2;
     return;
@@ -60,7 +59,6 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
   try {
     await using client = new ControllerClient({
       routerUrl: router,
-      token,
       cardhostUuid: cardhost,
       verbose,
     });

@@ -170,6 +170,16 @@ export class KeyManager {
   }
 
   /**
+   * Get private key (base64-encoded PKCS8)
+   */
+  getPrivateKey(): string {
+    if (!this.keyPair) {
+      throw new Error("Keypair not loaded. Call loadOrGenerate() first.");
+    }
+    return this.keyPair.privateKeyBase64;
+  }
+
+  /**
    * Verify Router-derived Controller ID matches public key hash
    * Prevents man-in-the-middle attacks
    */

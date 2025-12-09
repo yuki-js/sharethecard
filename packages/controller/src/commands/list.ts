@@ -1,5 +1,4 @@
 import chalk from "chalk";
-import { ControllerClient } from "../lib/index.js";
 
 export type ListCommandArgs = {
   router?: string;
@@ -7,48 +6,17 @@ export type ListCommandArgs = {
 };
 
 /**
- * List command implementation using new ControllerClient library
- * Lists available Cardhosts from Router
- *
- * NEW API (2025-12-09): No longer requires bearer token
- * Authentication via Ed25519 keypair stored in ~/.controller/
+ * List command - DEPRECATED
+ * 
+ * NOTE: The list command is no longer supported in the WebSocket-only architecture.
+ * Each Controller connects directly to a specific Cardhost UUID, so listing is not necessary.
+ * 
+ * To connect to a Cardhost:
+ * $ controller send --router <url> --cardhost <uuid> --apdu "..."
  */
 export async function run(argv: ListCommandArgs): Promise<void> {
-  const { router, verbose } = argv;
-
-  if (!router) {
-    console.error(chalk.red("Missing required option: --router"));
-    process.exitCode = 2;
-    return;
-  }
-
-  try {
-    const client = new ControllerClient({
-      routerUrl: router,
-      verbose,
-    });
-
-    if (verbose) {
-      console.info(chalk.gray("[verbose] Fetching Cardhost list..."));
-    }
-
-    const cardhosts = await client.listCardhosts();
-
-    if (verbose) {
-      console.info(
-        chalk.gray(`[verbose] Fetched ${cardhosts.length} cardhosts`),
-      );
-    }
-
-    console.info(chalk.green(`Cardhosts (${cardhosts.length}):`));
-
-    for (const ch of cardhosts) {
-      console.info(
-        `- ${ch.uuid}  ${ch.connected ? chalk.green("online") : chalk.gray("offline")}`,
-      );
-    }
-  } catch (error) {
-    console.error(chalk.red(`Failed: ${(error as Error).message}`));
-    process.exitCode = 1;
-  }
+  console.error(chalk.red("The 'list' command is no longer supported."));
+  console.error(chalk.gray("In the WebSocket-only architecture, controllers connect directly to specific cardhosts."));
+  console.error(chalk.gray("Provide the cardhost UUID when connecting."));
+  process.exitCode = 1;
 }

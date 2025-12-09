@@ -7,11 +7,9 @@
 
 export { CardhostService } from "./cardhost-service.js";
 export { ConfigManager } from "./config-manager.js";
-export { AuthManager } from "./auth-manager.js";
 export { MockSmartCardPlatform } from "./mock-platform.js";
-export { RouterServerTransport } from "./router-transport.js";
+export { RouterServerTransport, WsAuthenticator } from "./router-transport.js";
 
 export type { CardhostServiceConfig } from "./cardhost-service.js";
 export type { CardHostPersistedConfig } from "./config-manager.js";
-export type { AuthenticationResult } from "./auth-manager.js";
-export type { RouterTransportConfig } from "./router-transport.js";
+export type { RouterTransportConfig, WsAuthenticatorConfig } from "./router-transport.js";

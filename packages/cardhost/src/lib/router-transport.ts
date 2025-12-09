@@ -1,7 +1,11 @@
 /**
  * Router Transport for Cardhost
+ * 
+ * 責務分離:
+ * 1. WsAuthenticator: 認証・セッション確立
+ * 2. RouterServerTransport: RPC通信（仮想論理チャネル）
+ * 
  * Implements ServerTransport interface from jsapdu-over-ip
- * Handles WebSocket communication with Router for RPC requests
  */
 
 import { WebSocket } from "ws";
@@ -11,15 +15,225 @@ import type {
   RpcResponse,
   RpcEvent,
 } from "@aokiapp/jsapdu-over-ip";
+import { createLogger } from "@remote-apdu/shared";
+import type { WsContext } from "@remote-apdu/shared";
+import { WsServer, WsContextImpl, MessageRouter } from "@remote-apdu/shared";
+import { verifyDerivedUuid, signChallenge } from "./auth-utils.js";
 
-export interface RouterTransportConfig {
+const logger = createLogger("cardhost:transport");
+
+// ========== WsAuthenticator: 認証・セッション確立 ==========
+
+export interface WsAuthenticatorConfig {
   routerUrl: string;
-  // SECURITY: No cardhostUuid - Router identifies by authenticated connection
+  publicKey: string;
+  privateKey: string;
+  onControllerConnected?: () => void | Promise<void>;
 }
 
 /**
- * WebSocket-based server transport for Cardhost
- * Connects to Router and handles jsapdu-over-ip RPC protocol
+ * WebSocket接続と認証フローを専門に管理
+ * 認証後、Router派生のUUIDを取得
+ */
+export class WsAuthenticator {
+  private ws: WebSocket | null = null;
+  private uuid: string | null = null;
+  private challenge: string | null = null;
+  private authenticated = false;
+
+  constructor(private config: WsAuthenticatorConfig) {}
+
+  /**
+   * WebSocket接続と認証フロー実行
+   */
+  async authenticate(): Promise<string> {
+    if (this.authenticated) {
+      return this.uuid!;
+    }
+
+    return new Promise((resolve, reject) => {
+      const wsUrl = this.config.routerUrl
+        .replace(/^http:/, "ws:")
+        .replace(/^https:/, "wss:")
+        .replace(/\/$/, "");
+
+      this.ws = new WebSocket(`${wsUrl}/ws/cardhost`);
+
+      const ctx = new WsContextImpl<any>(this.ws, {});
+      const authRouter = new MessageRouter()
+        .register("auth-challenge", (c, msg: any) => this.handleAuthChallenge(c, msg))
+        .register("auth-success", (c, msg: any) => this.handleAuthSuccess(c, msg))
+        .register("error", (c, msg: any) => this.handleAuthError(c, msg, reject));
+
+      this.ws.on("open", async () => {
+        try {
+          // auth-init 送信
+          await ctx.send({
+            type: "auth-init",
+            publicKey: this.config.publicKey,
+          });
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      this.ws.on("message", async (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (!this.authenticated) {
+            await authRouter.route(ctx, msg);
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      this.ws.on("error", (err) => {
+        reject(err);
+      });
+
+      this.ws.on("close", () => {
+        if (!this.authenticated) {
+          reject(new Error("WebSocket closed before authentication"));
+        }
+      });
+
+      // 認証完了待機
+      const checkInterval = setInterval(() => {
+        if (this.authenticated) {
+          clearInterval(checkInterval);
+          resolve(this.uuid!);
+        }
+      }, 100);
+
+      // タイムアウト
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        if (!this.authenticated) {
+          reject(new Error("Authentication timeout"));
+        }
+      }, 10000);
+    });
+  }
+
+  /**
+   * auth-challenge ハンドラー
+   */
+  private async handleAuthChallenge(ctx: WsContext, msg: any): Promise<void> {
+    const { uuid, challenge } = msg;
+
+    // UUID検証
+    await verifyDerivedUuid(uuid, this.config.publicKey);
+    this.uuid = uuid;
+    this.challenge = challenge;
+
+    // 署名
+    const signature = await signChallenge(challenge, this.config.privateKey);
+
+    // auth-verify 送信
+    await ctx.send({
+      type: "auth-verify",
+      signature,
+    });
+  }
+
+  /**
+   * auth-success ハンドラー
+   */
+  private async handleAuthSuccess(ctx: WsContext, msg: any): Promise<void> {
+    this.authenticated = true;
+    logger.info("Authentication successful", { uuid: this.uuid });
+
+    // 認証後、controller-connected メッセージを待機
+    if (this.config.onControllerConnected) {
+      this.setupControllerConnectedListener(ctx);
+    }
+  }
+
+  /**
+   * Controller接続通知リスナー設定
+   */
+  private setupControllerConnectedListener(ctx: WsContext): void {
+    const onMessage = async (data: any) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === "controller-connected") {
+          logger.info("Controller connected notification received");
+          // コールバック実行（遅延初期化）
+          if (this.config.onControllerConnected) {
+            await this.config.onControllerConnected();
+          }
+        }
+      } catch (err) {
+        // Ignore parse errors
+      }
+    };
+
+    this.ws!.on("message", onMessage);
+  }
+
+  /**
+   * エラーハンドラー
+   */
+  private async handleAuthError(
+    ctx: WsContext,
+    msg: any,
+    reject: (err: Error) => void
+  ): Promise<void> {
+    reject(new Error(`Auth error: ${msg.error.code} - ${msg.error.message}`));
+  }
+
+  /**
+   * 認証済みWebSocketを取得（RouterServerTransportで使用）
+   */
+  getWebSocket(): WebSocket {
+    if (!this.ws || !this.authenticated) {
+      throw new Error("Not authenticated");
+    }
+    return this.ws;
+  }
+
+  /**
+   * UUID取得
+   */
+  getUuid(): string {
+    if (!this.uuid) {
+      throw new Error("Not authenticated");
+    }
+    return this.uuid;
+  }
+
+  /**
+   * 認証状態確認
+   */
+  isAuthenticated(): boolean {
+    return this.authenticated;
+  }
+
+  /**
+   * クローズ
+   */
+  async close(): Promise<void> {
+    if (this.ws) {
+      return new Promise((resolve) => {
+        this.ws!.once("close", resolve);
+        this.ws!.close();
+      });
+    }
+  }
+}
+
+// ========== RouterServerTransport: RPC通信 ==========
+
+export interface RouterTransportConfig {
+  authenticator: WsAuthenticator;
+}
+
+/**
+ * WebSocket上の仮想論理チャネル
+ * 認証後のRPC通信を担当（jsapdu-over-ip ServerTransport interface実装）
+ * 
+ * 注: 認証はWsAuthenticatorが行済みであることを前提
  */
 export class RouterServerTransport implements ServerTransport {
   private ws: WebSocket | null = null;
@@ -52,49 +266,24 @@ export class RouterServerTransport implements ServerTransport {
   }
 
   /**
-   * Start transport (connect to Router via WebSocket)
-   *
-   * SECURITY FIX (2025-12-09):
-   * - Endpoint: /ws/cardhost
-   * - NO UUID header sent (Router identifies by TLS/public key)
-   * - Cardhost doesn't need to know its own UUID
-   * - Router performs identification after connection
+   * Start transport
+   * 認証済みのWebSocketを使用してRPC通信を開始
    */
   async start(): Promise<void> {
     if (this.connected) {
       throw new Error("Transport already started");
     }
 
-    return new Promise((resolve, reject) => {
-      const wsUrl = this.config.routerUrl
-        .replace(/^http:/, "ws:")
-        .replace(/^https:/, "wss:")
-        .replace(/\/$/, "");
+    // 認証済みWebSocketを取得
+    this.ws = this.config.authenticator.getWebSocket();
 
-      // SECURITY: No UUID header - Router identifies by public key auth
-      // Cardhost should not self-declare its identity
-      this.ws = new WebSocket(`${wsUrl}/ws/cardhost`);
-
-      this.ws.on("open", () => {
-        this.connected = true;
-        resolve();
-      });
-
-      this.ws.on("error", (err) => {
-        if (!this.connected) {
-          reject(err);
-        }
-      });
-
-      this.ws.on("close", () => {
-        this.connected = false;
-        this.ws = null;
-      });
-
-      this.ws.on("message", async (data) => {
-        await this.handleMessage(data);
-      });
+    // RPC メッセージハンドリング設定
+    this.ws.on("message", async (data) => {
+      await this.handleMessage(data);
     });
+
+    this.connected = true;
+    logger.info("Transport started");
   }
 
   /**
@@ -105,19 +294,13 @@ export class RouterServerTransport implements ServerTransport {
       return;
     }
 
-    return new Promise((resolve) => {
-      this.ws!.once("close", () => {
-        this.connected = false;
-        this.ws = null;
-        resolve();
-      });
-
-      this.ws!.close();
-    });
+    // WebSocket自体は WsAuthenticator が管理するため、ここでは close しない
+    this.connected = false;
+    logger.info("Transport stopped");
   }
 
   /**
-   * Handle incoming WebSocket message
+   * Handle incoming RPC message
    */
   private async handleMessage(data: unknown): Promise<void> {
     try {
@@ -141,7 +324,8 @@ export class RouterServerTransport implements ServerTransport {
         }
       }
     } catch (error) {
-      // Suppress console output in library code; allow higher layers to handle errors
+      // Suppress console output in library code
+      logger.error("Error handling message", error as Error);
     }
   }
 

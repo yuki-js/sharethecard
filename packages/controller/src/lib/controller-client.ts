@@ -13,14 +13,11 @@ import {
   ResponseApdu,
   SmartCardError,
 } from "@aokiapp/jsapdu-interface";
-import { SessionManager } from "./session-manager.js";
-import { RouterClientTransport } from "./router-transport.js";
+import { WsAuthenticator, RouterClientTransport } from "./router-transport.js";
 import { KeyManager } from "./key-manager.js";
-import type { CardhostInfo } from "@remote-apdu/shared";
 
 /**
- * Controller Configuration (NEW API 2025-12-09)
- * No longer uses bearer token - authentication via Ed25519 keypair
+ * Controller Configuration
  */
 export interface ControllerConfig {
   routerUrl: string;
@@ -37,11 +34,11 @@ export interface ControllerConfig {
  * Usage:
  * ```typescript
  * const client = new ControllerClient({
- *   routerUrl: 'http://router.example.com',
- *   token: 'bearer-token-123'
+ *   routerUrl: 'https://router.example.com',
+ *   cardhostUuid: 'peer_...'
  * });
  *
- * await client.connect('cardhost-uuid-here');
+ * await client.connect();
  *
  * // Use jsapdu-interface methods
  * const command = new CommandApdu(0x00, 0xA4, 0x04, 0x00, ...);
@@ -53,7 +50,7 @@ export interface ControllerConfig {
  * Also supports `await using`:
  * ```typescript
  * await using client = new ControllerClient(config);
- * await client.connect(uuid);
+ * await client.connect();
  * const response = await client.transmit(command);
  * // Auto-cleanup on scope exit
  * ```
@@ -61,25 +58,21 @@ export interface ControllerConfig {
 export class ControllerClient {
   private platform: RemoteSmartCardPlatform | null = null;
   private transport: RouterClientTransport | null = null;
-  private sessionManager: SessionManager;
+  private authenticator: WsAuthenticator | null = null;
+  private keyManager: KeyManager;
   private connectedCardhostUuid: string | null = null;
 
   constructor(private config: ControllerConfig) {
-    this.sessionManager = new SessionManager({
-      routerUrl: config.routerUrl,
-      keyManager: config.keyManager,
-    });
+    this.keyManager = config.keyManager ?? new KeyManager();
   }
 
   /**
    * Connect to Router and establish connection with specific Cardhost
    *
-   * NEW API (2025-12-09):
-   * 1. Ed25519 public key authentication with Router
-   * 2. Session creation with target Cardhost
-   * 3. RemoteSmartCardPlatform initialization (jsapdu-over-ip)
-   *
-   * After connection, the platform can be used like local SmartCardPlatform
+   * Steps:
+   * 1. Load or generate keypair
+   * 2. WebSocket認証 + Cardhost接続
+   * 3. RemoteSmartCardPlatform初期化
    */
   async connect(cardhostUuid?: string): Promise<void> {
     const uuid = cardhostUuid ?? this.config.cardhostUuid;
@@ -97,36 +90,33 @@ export class ControllerClient {
       );
     }
 
-    // Authenticate with Ed25519 keypair (get Controller ID)
-    const controllerId = await this.sessionManager.authenticate();
-    
-    // Create session with cardhost (get session token)
-    const sessionToken = await this.sessionManager.createSession(uuid);
+    // Load or generate keypair
+    await this.keyManager.loadOrGenerate();
+    const publicKey = this.keyManager.getPublicKey();
+    const privateKey = this.keyManager.getPrivateKey();
 
-    // Create transport for jsapdu-over-ip
-    // The Router's /api/jsapdu/rpc endpoint bridges to the Cardhost via session
-    // SECURITY: Session token identifies the target Cardhost, no UUID needed
-    this.transport = new RouterClientTransport({
-      rpcEndpoint: `${this.config.routerUrl}/api/jsapdu/rpc`,
-      sessionToken,
-      controllerId,
+    // Step 1: WebSocket認証 + Cardhost接続
+    this.authenticator = new WsAuthenticator({
+      routerUrl: this.config.routerUrl,
+      publicKey,
+      privateKey,
     });
 
-    // Create RemoteSmartCardPlatform (jsapdu-over-ip client)
-    // This provides the full jsapdu-interface API over the network
+    await this.authenticator.authenticate(uuid);
+
+    // Step 2: RPC通信用トランスポート作成
+    this.transport = new RouterClientTransport({
+      authenticator: this.authenticator,
+    });
+
+    // Step 3: トランスポート開始
+    await this.transport.start();
+
+    // Step 4: RemoteSmartCardPlatform作成
     this.platform = new RemoteSmartCardPlatform(this.transport);
-    // Idempotent init: tolerate server-side pre-initialization by forcing init(true)
-    // This sets local initialized state and ensures platform is ready for getDeviceInfo().
     await this.platform.init(true);
 
     this.connectedCardhostUuid = uuid;
-  }
-
-  /**
-   * List available Cardhosts from Router
-   */
-  async listCardhosts(): Promise<CardhostInfo[]> {
-    return this.sessionManager.listCardhosts();
   }
 
   /**
@@ -167,7 +157,6 @@ export class ControllerClient {
     const platform = this.getPlatform();
 
     // Follow jsapdu pattern: get device → start session → transmit
-    // Use explicit try/finally to avoid suppressed disposal errors in test environments
     const devices = await platform.getDeviceInfo();
     if (devices.length === 0) {
       throw new SmartCardError(
@@ -195,7 +184,6 @@ export class ControllerClient {
           await card.release();
         } catch (err) {
           console.warn("[ControllerClient] Card cleanup error:", err);
-          // Continue despite cleanup error to avoid masking primary results
         }
       }
     } finally {
@@ -203,7 +191,6 @@ export class ControllerClient {
         await device.release();
       } catch (err) {
         console.warn("[ControllerClient] Device cleanup error:", err);
-        // Continue despite cleanup error to avoid masking primary results
       }
     }
   }
@@ -218,8 +205,13 @@ export class ControllerClient {
     }
 
     if (this.transport) {
-      await this.transport.close?.();
+      await this.transport.close();
       this.transport = null;
+    }
+
+    if (this.authenticator) {
+      await this.authenticator.close();
+      this.authenticator = null;
     }
 
     this.connectedCardhostUuid = null;
@@ -241,14 +233,6 @@ export class ControllerClient {
 
   /**
    * Async disposal support (await using)
-   *
-   * Example:
-   * ```typescript
-   * await using client = new ControllerClient(config);
-   * await client.connect(uuid);
-   * // ... use client ...
-   * // Automatic cleanup on scope exit
-   * ```
    */
   async [Symbol.asyncDispose](): Promise<void> {
     await this.disconnect();

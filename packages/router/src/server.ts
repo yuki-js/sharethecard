@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
  * Router Server
- * HTTP/WebSocket server that can be started in-process for testing or standalone
- * This integrates the Router library with Hono HTTP framework and WebSocket
+ * HTTP/WebSocket server (WebSocket only, HTTP for /health and /stats)
+ * Can be started in-process for testing or standalone
  */
 
-import { Hono } from "hono";
-import { serve } from "@hono/node-server";
+import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { Router } from "./router.js";
-import { createControllerRoutes } from "./presentation/rest/controller-routes.js";
-import { createCardhostRoutes } from "./presentation/rest/cardhost-routes.js";
 import { handleControllerWebSocket } from "./presentation/ws/controller-ws.js";
 import { handleCardhostWebSocket } from "./presentation/ws/cardhost-ws.js";
+import { createLogger } from "@remote-apdu/shared";
+
+const logger = createLogger("router:server");
 
 export interface ServerConfig {
   port?: number;
@@ -27,7 +27,7 @@ export async function startServer(
   config: ServerConfig = {},
 ): Promise<{
   router: Router;
-  server: ReturnType<typeof serve>;
+  server: ReturnType<typeof createServer>;
   wss: WebSocketServer;
   stop: () => Promise<void>;
 }> {
@@ -38,68 +38,41 @@ export async function startServer(
   const router = new Router();
   await router.start();
 
-  // Create Hono app
-  const app = new Hono();
+  // Create HTTP server
+  const httpServer = createServer((req, res) => {
+    // /health endpoint
+    if (req.url === "/health" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, running: router.isRunning() }));
+      return;
+    }
 
-  // Mount controller routes
-  const controllerRoutes = createControllerRoutes(
-    router.controllerUseCase,
-    router.cardhostUseCase,
-  );
-  app.route("/", controllerRoutes);
+    // /stats endpoint
+    if (req.url === "/stats" && req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(router.getStats()));
+      return;
+    }
 
-  // Mount cardhost routes
-  const cardhostRoutes = createCardhostRoutes(router.cardhostUseCase);
-  app.route("/", cardhostRoutes);
-
-  // Stats endpoint
-  app.get("/stats", (c) => {
-    const stats = router.getStats();
-    return c.json(stats);
-  });
-
-  // Health check
-  app.get("/health", (c) => {
-    return c.json({ ok: true, running: router.isRunning() });
+    // All other paths 404
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
   });
 
   console.log("Starting Router Server...");
   console.log(`Listening on http://${host}:${port}`);
 
-  // Start HTTP server
-  const server = serve({
-    fetch: app.fetch,
-    port,
-    hostname: host,
-  });
-
   // Create WebSocket server
-  const wss = new WebSocketServer({ server: server as any });
+  const wss = new WebSocketServer({ server: httpServer });
 
-  wss.on("connection", (ws, req) => {
+  wss.on("connection", async (ws, req) => {
     const url = req.url || "";
 
     // Separate paths for controller and cardhost WebSocket connections
     if (url.startsWith("/ws/controller")) {
-      const controllerId = String(req.headers["x-controller-id"] ?? "");
-      const sessionToken = String(req.headers["x-session-token"] ?? "");
-      handleControllerWebSocket(
-        ws,
-        controllerId,
-        sessionToken,
-        router.controllerUseCase,
-        router.transportUseCase,
-      );
+      await handleControllerWebSocket(ws, router);
     } else if (url.startsWith("/ws/cardhost")) {
-      // SECURITY FIX: Do NOT read x-cardhost-uuid from client
-      // Router identifies cardhost by authenticated connection
-      // Connection must already be authenticated via REST API
-      handleCardhostWebSocket(
-        ws,
-        req,
-        router.cardhostUseCase,
-        router.transportUseCase,
-      );
+      await handleCardhostWebSocket(ws, req, router);
     } else {
       try {
         ws.close(1008, "Invalid WebSocket path");
@@ -107,18 +80,33 @@ export async function startServer(
     }
   });
 
+  wss.on("error", (err) => {
+    logger.error("WebSocket server error", err as Error);
+  });
+
+  // Start listening
+  await new Promise<void>((resolve) => {
+    httpServer.listen(port, host, () => {
+      logger.info("Router server listening", { host, port });
+      resolve();
+    });
+  });
+
   return {
     router,
-    server,
+    server: httpServer,
     wss,
     async stop() {
       try {
         wss.close();
       } catch {}
       await router.stop();
-      try {
-        server.close();
-      } catch {}
+      return new Promise<void>((resolve) => {
+        httpServer.close(() => {
+          logger.info("Router server stopped");
+          resolve();
+        });
+      });
     },
   };
 }

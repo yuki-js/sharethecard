@@ -6,12 +6,10 @@
  */
 
 export { ControllerClient } from "./controller-client.js";
-export { SessionManager } from "./session-manager.js";
-export { RouterClientTransport } from "./router-transport.js";
+export { RouterClientTransport, WsAuthenticator } from "./router-transport.js";
 export { KeyManager } from "./key-manager.js";
 
-export type { RouterClientTransportConfig } from "./router-transport.js";
-export type { SessionManagerConfig } from "./session-manager.js";
+export type { RouterClientTransportConfig, WsAuthenticatorConfig } from "./router-transport.js";
 export type { ControllerKeyPair, ControllerIdentity } from "./key-manager.js";
 
 // Re-export useful types from shared

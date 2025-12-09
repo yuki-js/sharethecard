@@ -99,4 +99,14 @@ export class TransportUseCase {
   getConnectionCounts(): { controllers: number; cardhosts: number } {
     return this.transportService.getConnectionCounts();
   }
+
+  /**
+   * Notify Cardhost that a Controller has connected
+   * Triggers lazy initialization on Cardhost side
+   */
+  notifyCardhostControllerConnected(cardhostUuid: string): void {
+    this.transportService.sendToCardhost(cardhostUuid, {
+      type: "controller-connected",
+    });
+  }
 }

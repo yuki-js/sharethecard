@@ -3,123 +3,127 @@
  * Wraps SmartCardPlatform with jsapdu-over-ip ServerTransport
  * Provides testable, composable Cardhost functionality
  *
- * Spec: docs/what-to-make.md Section 3.2 - Cardhost
- * Reference: research/jsapdu-over-ip/src/server/platform-adapter.ts
+ * アーキテクチャ設計:
+ * 1. 認証層：WsAuthenticator（認証のみ）
+ * 2. 論理チャネル層：RouterServerTransport（E2E暗号化含む将来拡張可能）
+ * 3. アプリケーション層：SmartCardPlatformAdapter（RPC処理）
+ * 
+ * 遅延初期化：Controller接続時に初めて transport/adapter を作成
  */
 
 import { SmartCardPlatformAdapter } from "@aokiapp/jsapdu-over-ip/server";
 import type { SmartCardPlatform } from "@aokiapp/jsapdu-interface";
 import { SmartCardError } from "@aokiapp/jsapdu-interface";
 import { ConfigManager } from "./config-manager.js";
-import { AuthManager } from "./auth-manager.js";
-import { RouterServerTransport } from "./router-transport.js";
+import { WsAuthenticator, RouterServerTransport } from "./router-transport.js";
+import { createLogger } from "@remote-apdu/shared";
+
+const logger = createLogger("cardhost:service");
 
 export interface CardhostServiceConfig {
   routerUrl: string;
   platform: SmartCardPlatform;
   configManager: ConfigManager;
-  authManager?: AuthManager;
 }
 
 /**
  * Cardhost Service
  *
- * This is the library core - fully testable without running as standalone service.
- *
- * Usage:
- * ```typescript
- * // With real hardware
- * const service = new CardhostService({ routerUrl: 'http://router.example.com' });
- *
- * // With mock platform (for testing)
- * const mockPlatform = new MockSmartCardPlatform();
- * const service = new CardhostService({
- *   routerUrl: 'http://localhost:3000',
- *   platform: mockPlatform
- * });
- *
- * await service.connect();
- * // Now Controller can send APDU commands via Router
- *
- * await service.disconnect();
- * ```
+ * 遅延初期化戦略:
+ * - connect(): 認証のみ実行、WebSocket待機状態
+ * - Controller接続時: その時点で transport/adapter を初期化
+ * 
+ * これにより:
+ * - リソース効率向上（使われるまで初期化しない）
+ * - 明確な責務分離
+ * - E2E暗号化への拡張性確保
  */
 export class CardhostService {
   private platform: SmartCardPlatform;
   private adapter: SmartCardPlatformAdapter | null = null;
   private transport: RouterServerTransport | null = null;
+  private authenticator: WsAuthenticator | null = null;
   private configManager: ConfigManager;
-  private authManager: AuthManager;
-  private connected = false;
+  private authenticated = false;
 
   constructor(config: CardhostServiceConfig) {
     this.platform = config.platform;
     this.configManager = config.configManager;
-    this.authManager = config.authManager ?? new AuthManager(config.routerUrl);
   }
 
   /**
-   * Connect to Router and start serving APDU requests
+   * Connect to Router and authenticate
    *
-   * Steps:
-   * 1. Load or create UUID and keypair
-   * 2. Authenticate with Router (challenge-response)
-   * 3. Initialize platform
-   * 4. Create transport and adapter
-   * 5. Start serving RPC requests
+   * Phase 1: 認証のみ
+   * - WebSocket接続
+   * - チャレンジ-レスポンス認証
+   * - Controller接続待機状態
+   * 
+   * Phase 2: Controller接続時（遅延初期化）
+   * - transport/adapter作成
+   * - RPC待機開始
    */
-  async connect(): Promise<void> {
-    if (this.connected) {
+  async connect(routerUrl?: string): Promise<void> {
+    if (this.authenticated) {
       throw new SmartCardError("ALREADY_CONNECTED", "Already connected");
     }
 
-    // Load/create config (UUID + keypair)
-    let config = await this.configManager.loadOrCreate(
-      this.authManager.getRouterUrl(),
-    );
+    const url = routerUrl || (await this.getConfiguredRouterUrl());
 
-    // Ensure persisted routerUrl matches the active runtime URL (e.g., test port)
-    if (config.routerUrl !== this.authManager.getRouterUrl()) {
-      await this.configManager.updateRouterUrl(this.authManager.getRouterUrl());
-      // Refresh local config and auth manager to use the updated router URL
-      config = this.configManager.getConfig();
-      this.authManager.setRouterUrl(config.routerUrl);
-    }
+    // Load/create config (keypair)
+    const config = await this.configManager.loadOrCreate(url);
 
-    // Authenticate with Router (receive Router-derived UUID)
-    const authResult = await this.authManager.authenticate(config);
-    
-    // Update config with Router-derived UUID if provided
-    if (authResult.derivedUuid && authResult.derivedUuid !== config.uuid) {
-      await this.configManager.updateUuid(authResult.derivedUuid);
-      // Refresh config after UUID update
-      config = this.configManager.getConfig();
-    }
-
-    // Lazy initialization: platform will be initialized by Controller via jsapdu-over-ip 'init' RPC.
-    // Avoid double-initialization here to prevent RemoteSmartCardError: "Platform already initialized".
-
-    // Create transport for jsapdu-over-ip (use active AuthManager URL to avoid stale persisted config)
-    // SECURITY: No UUID passed - Router identifies Cardhost by authenticated connection
-    this.transport = new RouterServerTransport({
-      routerUrl: this.authManager.getRouterUrl(),
+    // Phase 1: 認証のみ
+    this.authenticator = new WsAuthenticator({
+      routerUrl: url,
+      publicKey: config.signingPublicKey,
+      privateKey: config.signingPrivateKey,
+      onControllerConnected: () => this.initializeTransport(),
     });
 
-    // Create SmartCardPlatformAdapter (jsapdu-over-ip server side)
-    // This handles all RPC protocol, serialization, and method dispatching
+    const derivedUuid = await this.authenticator.authenticate();
+
+    // Update config with Router-derived UUID if changed
+    if (derivedUuid !== config.uuid) {
+      await this.configManager.updateUuid(derivedUuid);
+    }
+
+    this.authenticated = true;
+    logger.info("Cardhost authenticated, waiting for Controller connection");
+  }
+
+  /**
+   * Initialize transport and adapter (called when Controller connects)
+   * 遅延初期化：Controller接続時に呼ばれる
+   */
+  private async initializeTransport(): Promise<void> {
+    if (this.transport || this.adapter) {
+      logger.warn("Transport already initialized");
+      return;
+    }
+
+    logger.info("Controller connected, initializing transport/adapter");
+
+    // 論理チャネル層：RPC通信用（E2E暗号化もここに将来追加）
+    this.transport = new RouterServerTransport({
+      authenticator: this.authenticator!,
+    });
+
+    // アプリケーション層：jsapdu-over-ip RPC処理
     this.adapter = new SmartCardPlatformAdapter(this.platform, this.transport);
 
-    // Start transport (connects to Router)
+    // Start transport & adapter
+    await this.transport.start();
     await this.adapter.start();
 
-    this.connected = true;
+    logger.info("Transport/adapter initialized, ready for RPC");
   }
 
   /**
    * Disconnect from Router and cleanup
    */
   async disconnect(): Promise<void> {
-    if (!this.connected) {
+    if (!this.authenticated) {
       return;
     }
 
@@ -129,22 +133,27 @@ export class CardhostService {
       this.adapter = null;
     }
 
-    this.transport = null;
+    if (this.transport) {
+      await this.transport.stop();
+      this.transport = null;
+    }
+
+    // Close WebSocket connection
+    if (this.authenticator) {
+      await this.authenticator.close();
+      this.authenticator = null;
+    }
 
     // Release platform
     if (this.platform.isInitialized()) {
       await this.platform.release();
     }
 
-    this.connected = false;
+    this.authenticated = false;
   }
 
   /**
    * Get Cardhost UUID
-   *
-   * NOTE: This UUID is Router-derived and should NOT be sent to Router.
-   * It's only for local reference/debugging purposes.
-   * Router identifies Cardhost by authenticated connection, not by UUID.
    */
   getUuid(): string {
     return this.configManager.getUuid();
@@ -154,7 +163,7 @@ export class CardhostService {
    * Check if connected to Router
    */
   isConnected(): boolean {
-    return this.connected && this.transport?.isConnected() === true;
+    return this.authenticated && (this.transport?.isConnected() ?? false);
   }
 
   /**
@@ -162,6 +171,17 @@ export class CardhostService {
    */
   getPlatform(): SmartCardPlatform {
     return this.platform;
+  }
+
+  /**
+   * Get configured router URL
+   */
+  private async getConfiguredRouterUrl(): Promise<string> {
+    const config = this.configManager.getConfig();
+    if (!config.routerUrl) {
+      throw new Error("Router URL not configured");
+    }
+    return config.routerUrl;
   }
 
   /**
