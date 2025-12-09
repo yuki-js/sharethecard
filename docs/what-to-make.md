@@ -21,14 +21,22 @@
 
 ```
 [Controller]  ←→  [Router]  ←→  [Cardhost]
-   (Browser)         (Server)        (Card Reader)
+   (CLI/App)         (Server)        (Card Reader)
       ↓                               ↓
-   GUI操作                         物理カード
+   APDU操作                        物理カード
 
 通信フロー:
-1. Controller → Router: Outbound接続（REST/WebSocket）
-2. Cardhost → Router: Outbound接続（REST/WebSocket）
+1. Controller → Router: Outbound WebSocket接続
+2. Cardhost → Router: Outbound WebSocket接続
 3. Controller ←→ Cardhost: Router経由の仮想ネットワーク（E2E暗号化）
+
+認証フロー（WebSocketメッセージベース）:
+1. WebSocket接続確立
+2. auth-init メッセージで公開鍵送信
+3. auth-challenge メッセージでチャレンジ受信
+4. auth-verify メッセージで署名送信
+5. auth-success で認証完了
+6. 以降、同じWebSocketでRPC通信
 ```
 
 ### 2.2 所有者モデル
@@ -57,10 +65,12 @@
 #### 3.1.3 主要機能
 
 1. **接続管理**
-   - Router へのアウトバウンド接続（WebSocket/REST）
-   - Cardhost UUID を指定した接続確立
+   - Router へのアウトバウンドWebSocket接続（`/ws/controller`）
+   - 接続後、WebSocketメッセージで認証
+   - Cardhost UUID を指定した論理接続確立
    - NAT トラバーサル対応（アウトバウンド接続のみ使用）
    - 接続状態の自動再接続
+   - **UUID/ID送信不要**：接続自体がアイデンティティ
 
 2. **APDU操作**
    - [`jsapdu`](https://github.com/AokiApp/jsapdu-over-ip) インターフェースを通じたリモートカード操作
@@ -85,8 +95,8 @@
 #### 3.1.4 CLIコマンド例
 
 ```bash
-# 接続
-$ controller connect --router https://router.example.com --cardhost <UUID> --token <TOKEN>
+# 接続（Ed25519鍵ペアは ~/.controller/ に自動生成/保存）
+$ controller connect --router https://router.example.com --cardhost <UUID>
 
 # 単発APDUコマンド送信
 $ controller send --apdu "00A4040008A000000003000000"
@@ -112,10 +122,18 @@ $ controller send --apdu "00A4..." --verbose
 
 #### 3.1.5 認証方式
 
-- ベアラー認証（以下のいずれかを実装）
-  - ベアラートークン（環境変数または設定ファイルから読み込み）
-  - 公開鍵/秘密鍵ペア（~/.controller/id_ed25519 等）
-  - チャレンジ-レスポンス認証
+**WebSocketメッセージベース認証**（HTTP REST不使用）
+
+- **Ed25519公開鍵暗号** による チャレンジ-レスポンス認証
+- 鍵ペア保存先: `~/.controller/id_ed25519[.pub]`
+- 認証フロー（すべてWebSocketメッセージ）:
+  1. WebSocket `/ws/controller` 接続
+  2. `{ type: "auth-init", publicKey: "..." }` 送信
+  3. `{ type: "auth-challenge", controllerId: "...", challenge: "..." }` 受信
+  4. Controller ID検証 + チャレンジ署名
+  5. `{ type: "auth-verify", signature: "..." }` 送信
+  6. `{ type: "auth-success", controllerId: "..." }` 受信
+  7. 認証完了、同じWebSocketでRPC通信開始
 
 #### 3.1.6 セキュリティ要件
 
@@ -140,10 +158,12 @@ $ controller send --apdu "00A4..." --verbose
 #### 3.2.3 主要機能
 
 1. **接続管理**
-   - Router へのアウトバウンド接続（WebSocket/REST）
-   - 固有UUID による識別（128ビット）
-   - UUID の永続化と再接続時の維持
+   - Router へのアウトバウンドWebSocket接続（`/ws/cardhost`）
+   - 接続後、WebSocketメッセージで認証
+   - Router派生UUID による識別（`peer_<hash>`形式）
+   - UUID の永続化（内部参照用のみ、送信不要）
    - NAT トラバーサル対応
+   - **UUID送信不要**：Routerが接続から識別
 
 2. **カード操作**
    - [`jsapdu`](https://github.com/AokiApp/jsapdu-over-ip) インスタンスの管理
@@ -152,14 +172,26 @@ $ controller send --apdu "00A4..." --verbose
    - APDU コマンドの実行とレスポンス返送
 
 3. **UUID管理**
-   - 128ビット UUID の生成と永続化
-   - 再起動・再接続時の同一性保証
-   - **注意**: 128ビットは長期トラッキングには不十分な可能性に留意
+   - **Router派生UUID**（`peer_` + base64url(SHA-256(publicKey))）
+   - 認証時にRouterから受信して永続化（内部参照用）
+   - **重要**: UUIDはRouter側で決定、Cardhostは送信しない
+   - 再接続時も同じ公開鍵を使用するため同一UUID
+   - 公開鍵とUUIDの強い紐付けによる長期識別
 
 #### 3.2.4 認証方式
 
-- 固定鍵ペア（公開鍵/秘密鍵）による認証
-- ピア同定と認証を鍵ペアで実現
+**WebSocketメッセージベース認証**（HTTP REST不使用）
+
+- **Ed25519固定鍵ペア** によるチャレンジ-レスポンス認証
+- 鍵ペア保存先: `~/.cardhost/config.json`（暗号化推奨）
+- 認証フロー（すべてWebSocketメッセージ）:
+  1. WebSocket `/ws/cardhost` 接続
+  2. `{ type: "auth-init", publicKey: "..." }` 送信
+  3. `{ type: "auth-challenge", uuid: "peer_...", challenge: "..." }` 受信
+  4. UUID検証（公開鍵から正しく派生されているか）
+  5. `{ type: "auth-verify", signature: "..." }` 送信
+  6. `{ type: "auth-success", uuid: "peer_..." }` 受信
+  7. 認証完了、同じWebSocketでRPC受信待機
 
 #### 3.2.5 セキュリティ要件
 
@@ -184,19 +216,22 @@ Controller と Cardhost をインターネット越しに接続する中継サ�
 #### 3.3.3 主要機能
 
 1. **接続管理**
-   - Controller からのインバウンド接続受付（REST/WebSocket）
-   - Cardhost からのインバウンド接続受付（REST/WebSocket）
+   - Controller からのインバウンドWebSocket接続受付（`/ws/controller`）
+   - Cardhost からのインバウンドWebSocket接続受付（`/ws/cardhost`）
    - セッション管理とルーティング
+   - **WebSocket接続=アイデンティティ**（UUID/ID不要）
 
 2. **認証・認可**
-   - Controller: ベアラートークン検証
-   - Cardhost: 公開鍵認証
+   - **統一認証**: Controller/Cardhost共にEd25519公開鍵認証
+   - **WebSocketメッセージベース**: HTTP REST不使用
+   - チャレンジ-レスポンス認証（リプレイ攻撃対策）
    - アクセス制御とパーミッション管理
+   - Router派生ID/UUID（衝突・なりすまし対策）
 
 3. **通信中継**
-   - Controller と Cardhost 間の仮想ネットワーク構築
+   - Controller と Cardhost 間の透過的RPC中継
    - E2E暗号化されたペイロードの中継（復号化なし）
-   - セッションキー交換の仲介
+   - WebSocket接続マッピングによるルーティング
 
 4. **モニタリング**
    - 接続状態の監視
@@ -205,8 +240,18 @@ Controller と Cardhost をインターネット越しに接続する中継サ�
 
 #### 3.3.4 プロトコル設計
 
-- **REST API**: 接続確立、認証、メタデータ操作
-- **WebSocket**: リアルタイム通信、APDU送受信、イベント通知
+**WebSocketオンリー**: すべての通信をWebSocketで実行（HTTP REST不使用）
+
+- **WebSocket**: 認証、RPC通信、イベント通知のすべて
+- **メッセージベースプロトコル**: 型付きJSON messageによる通信
+- **接続=アイデンティティ**: クライアントはUUID/ID送信不要
+- **ステートフル通信**: 持続的接続による効率的な双方向通信
+
+**エンドポイント**:
+- `/ws/controller` - Controller接続専用
+- `/ws/cardhost` - Cardhost接続専用
+- `/health` - ヘルスチェック（HTTPのみ、管理用）
+- `/stats` - 統計情報（HTTPのみ、管理用）
 
 #### 3.3.5 セキュリティ要件
 
@@ -271,39 +316,56 @@ Cardhost と同じプロセスで動作し、Cardhost 所有者向けの監視�
 
 ### 4.1 Cardhost ↔ Router
 
-#### 4.1.1 認証フロー
+#### 4.1.1 認証フロー（WebSocketメッセージベース）
 
-1. Cardhost が公開鍵を含む接続要求を送信
-2. Router がチャレンジを発行
-3. Cardhost が秘密鍵で署名したレスポンスを返送
-4. Router が署名を検証して認証完了
+**すべてWebSocketメッセージで実行**（HTTP REST不使用）
+
+1. Cardhost が `/ws/cardhost` にWebSocket接続
+2. `{ type: "auth-init", publicKey: "..." }` メッセージ送信
+3. Router が UUID派生 + チャレンジ生成
+4. `{ type: "auth-challenge", uuid: "peer_...", challenge: "..." }` 受信
+5. Cardhost が UUID検証（公開鍵から正しく派生されているか）
+6. チャレンジに署名して `{ type: "auth-verify", signature: "..." }` 送信
+7. Router が署名検証
+8. `{ type: "auth-success", uuid: "peer_..." }` 受信で認証完了
 
 #### 4.1.2 通信パターン
 
-- **初期接続**: REST API（POST /cardhost/connect）
-- **ハートビート**: WebSocket（定期的な生存確認、署名付き）
-- **APDU中継**: WebSocket（暗号化されたペイロード転送）
-- **イベント通知**: WebSocket（カード挿入/取り外し等）
+**すべてWebSocket**（HTTP REST不使用）
+
+- **認証**: WebSocketメッセージ（auth-init/challenge/verify/success）
+- **ハートビート**: WebSocketメッセージ（定期的な生存確認）
+- **RPC受信**: WebSocketメッセージ（Controller→Cardhostへの要求）
+- **RPC応答**: WebSocketメッセージ（Cardhost→Controllerへの応答）
+- **イベント通知**: WebSocketメッセージ（カード挿入/取り外し等）
 
 ### 4.2 Controller ↔ Router
 
-#### 4.2.1 認証フロー（公開鍵チャレンジ-レスポンス）
+#### 4.2.1 認証フロー（WebSocketメッセージベース）
 
-1. Controller が公開鍵を含む接続要求を送信
-2. Router がチャレンジを発行
-3. Controller が秘密鍵で署名したレスポンスを返送
-4. Router が署名を検証して認証完了
-5. **認証後**、Controller が cardhost UUID を指定してセッション作成
-6. Router がセッショントークンを発行（識別用、認証ではない）
-7. WebSocket 接続時にセッショントークンとController IDを使用
+**すべてWebSocketメッセージで実行**（HTTP REST不使用）
+
+1. Controller が `/ws/controller` にWebSocket接続
+2. `{ type: "auth-init", publicKey: "..." }` メッセージ送信
+3. Router が Controller ID派生 + チャレンジ生成
+4. `{ type: "auth-challenge", controllerId: "peer_...", challenge: "..." }` 受信
+5. Controller が Controller ID検証（公開鍵から正しく派生されているか）
+6. チャレンジに署名して `{ type: "auth-verify", signature: "..." }` 送信
+7. Router が署名検証
+8. `{ type: "auth-success", controllerId: "..." }` 受信で認証完了
+9. **認証後**、`{ type: "connect-cardhost", cardhostUuid: "peer_..." }` 送信
+10. Router が論理セッション確立
+11. `{ type: "connected", cardhostUuid: "..." }` 受信で接続完了
 
 #### 4.2.2 通信パターン
 
-- **認証開始**: REST API（POST /controller/auth/initiate）
-- **認証完了**: REST API（POST /controller/auth/verify）
-- **Cardhost 検索**: REST API（GET /controller/cardhosts）
-- **セッション作成**: REST API（POST /controller/sessions） - 識別用
-- **データ送受信**: WebSocket（暗号化されたペイロード転送）
+**すべてWebSocket**（HTTP REST不使用）
+
+- **認証**: WebSocketメッセージ（auth-init/challenge/verify/success）
+- **Cardhost接続**: WebSocketメッセージ（connect-cardhost/connected）
+- **RPC送信**: WebSocketメッセージ（Controller→Cardhostへの要求）
+- **RPC応答**: WebSocketメッセージ（Cardhost→Controllerへの応答）
+- **イベント受信**: WebSocketメッセージ（Cardhostからの通知）
 
 ### 4.3 Controller ↔ Cardhost（E2E）
 
@@ -367,34 +429,44 @@ interface EncryptedMessage {
 #### 5.2.1 Cardhost 認証
 
 ```
-方式: 公開鍵認証 + チャレンジ-レスポンス
+方式: WebSocketメッセージベース公開鍵認証
 
 フロー:
-1. Cardhost → Router: 公開鍵 + UUID
-2. Router → Cardhost: チャレンジ（ランダムナンス）
-3. Cardhost → Router: Sign(PrivateKey, Challenge)
-4. Router: Verify(PublicKey, Challenge, Signature)
+1. Cardhost → Router: WebSocket接続 (/ws/cardhost)
+2. Cardhost → Router: { type: "auth-init", publicKey }
+3. Router: UUID派生 = peer_hash(publicKey)
+4. Router → Cardhost: { type: "auth-challenge", uuid, challenge }
+5. Cardhost: UUID検証 + 署名生成
+6. Cardhost → Router: { type: "auth-verify", signature }
+7. Router: 署名検証 + WebSocket ↔ UUID マッピング
+8. Router → Cardhost: { type: "auth-success", uuid }
 ```
 
 #### 5.2.2 Controller 認証
 
 ```
-方式: 公開鍵認証 + チャレンジ-レスポンス（Cardhostと同じ）
+方式: WebSocketメッセージベース公開鍵認証（Cardhostと同様）
 
 フロー:
-1. Controller → Router: 公開鍵 + Controller ID
-2. Router → Controller: チャレンジ（ランダムナンス）
-3. Controller → Router: Sign(PrivateKey, Challenge)
-4. Router: Verify(PublicKey, Challenge, Signature)
-5. 認証完了後、Controller が cardhost UUID を指定してセッション作成
-6. Router → Controller: Session Token（識別用、認証ではない）
-7. WebSocket接続時: Controller ID + Session Token使用
+1. Controller → Router: WebSocket接続 (/ws/controller)
+2. Controller → Router: { type: "auth-init", publicKey }
+3. Router: Controller ID派生 = peer_hash(publicKey)
+4. Router → Controller: { type: "auth-challenge", controllerId, challenge }
+5. Controller: ID検証 + 署名生成
+6. Controller → Router: { type: "auth-verify", signature }
+7. Router: 署名検証 + WebSocket ↔ Controller ID マッピング
+8. Router → Controller: { type: "auth-success", controllerId }
+9. Controller → Router: { type: "connect-cardhost", cardhostUuid }
+10. Router: セッション確立 + ルーティング設定
+11. Router → Controller: { type: "connected", cardhostUuid }
 ```
 
-**重要な変更点:**
-- Bearer token方式を廃止
-- 公開鍵暗号（Ed25519）によるチャレンジ-レスポンス認証に統一
-- 認証（誰か）とセッション識別（何を）を明確に分離
+**アーキテクチャ原則（v3.0）:**
+- **WebSocketオンリー**: HTTP REST完全廃止
+- **接続=アイデンティティ**: UUID/ID送信不要、Routerが接続から識別
+- **Router派生ID**: クライアントは選べない、衝突・なりすまし防止
+- **Ed25519公開鍵認証**: Controller/Cardhost共通の認証方式
+- **ステートフル通信**: 持続的接続による効率的な双方向通信
 
 ### 5.3 メッセージ認証
 
@@ -707,14 +779,27 @@ docs/
 
 ## 8. 実装上の重要な注意事項
 
-### 8.1 UUID管理の注意点
+### 8.1 UUID/ID管理の注意点
 
-Cardhost の UUID は 128ビット（16バイト）であり、以下の点に留意:
+**Router派生方式（v3.0）**
 
-- 衝突確率は極めて低いが、ゼロではない
-- 長期的なトラッキングには追加の識別子、つまり鍵ペアを使用
-- 名前参照としてUUIDを利用する
-- UUID と公開鍵の組み合わせでより強固な識別を推奨
+Cardhost UUID / Controller ID は公開鍵ハッシュから派生:
+```
+Peer ID/UUID = "peer_" + base64url(SHA-256(publicKey))
+```
+
+重要な特性:
+- **決定論的**: 同じ公開鍵 → 同じID/UUID
+- **衝突不可能**: 公開鍵が異なれば必ずID/UUIDも異なる
+- **偽装不可能**: クライアントは選べない、Routerのみが決定
+- **検証可能**: クライアント側で正しく派生されたか検証必須
+- **永続的**: 公開鍵を保持すれば永続的な識別が可能
+- **送信不要**: WebSocket接続自体がアイデンティティ
+
+**セキュリティ要件**:
+- クライアントはID/UUIDをRouterに送信してはならない
+- Routerから受け取ったID/UUIDを必ず検証すること
+- UUID/IDは内部参照用のみ（Routerへの送信は禁止）
 
 ### 8.2 [`jsapdu-over-ip`](https://github.com/AokiApp/jsapdu-over-ip) の統合
 
@@ -747,5 +832,15 @@ Cardhost の UUID は 128ビット（16バイト）であり、以下の点に�
 
 ---
 
-**最終更新**: 2025-12-08  
-**バージョン**: 2.0
+**最終更新**: 2025-12-09
+**バージョン**: 3.0 - WebSocketオンリーアーキテクチャ
+
+**重要な変更（v3.0）**:
+- ✅ HTTP REST完全廃止、すべてWebSocket通信
+- ✅ WebSocketメッセージベース認証
+- ✅ 接続=アイデンティティ（UUID/ID送信不要）
+- ✅ Router派生ID/UUID（衝突・なりすまし防止）
+- ✅ Ed25519公開鍵認証（統一認証方式）
+
+**詳細実装指示**:
+- [WebSocketオンリーアーキテクチャ実装指示書](devnotes/WEBSOCKET-ONLY-ARCHITECTURE-2025-12-09.md)

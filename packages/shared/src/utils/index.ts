@@ -45,7 +45,8 @@ export function generateRandomBase64(bytes: number): string {
 }
 
 /**
- * Re-exports: canonical JSON and hex utilities
+ * Re-exports: canonical JSON, hex utilities, and logger
  */
 export * from "./canonical-json.js";
 export * from "./hex.js";
+export * from "./logger.js";

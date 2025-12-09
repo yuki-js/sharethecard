@@ -15,7 +15,19 @@ import {
 } from "@aokiapp/jsapdu-interface";
 import { SessionManager } from "./session-manager.js";
 import { RouterClientTransport } from "./router-transport.js";
-import type { ControllerConfig, CardhostInfo } from "@remote-apdu/shared";
+import { KeyManager } from "./key-manager.js";
+import type { CardhostInfo } from "@remote-apdu/shared";
+
+/**
+ * Controller Configuration (NEW API 2025-12-09)
+ * No longer uses bearer token - authentication via Ed25519 keypair
+ */
+export interface ControllerConfig {
+  routerUrl: string;
+  cardhostUuid?: string;
+  verbose?: boolean;
+  keyManager?: KeyManager; // Optional for testing
+}
 
 /**
  * Controller Client
@@ -55,15 +67,15 @@ export class ControllerClient {
   constructor(private config: ControllerConfig) {
     this.sessionManager = new SessionManager({
       routerUrl: config.routerUrl,
-      token: config.token,
+      keyManager: config.keyManager,
     });
   }
 
   /**
    * Connect to Router and establish connection with specific Cardhost
    *
-   * This performs:
-   * 1. Bearer token authentication with Router
+   * NEW API (2025-12-09):
+   * 1. Ed25519 public key authentication with Router
    * 2. Session creation with target Cardhost
    * 3. RemoteSmartCardPlatform initialization (jsapdu-over-ip)
    *
@@ -85,16 +97,19 @@ export class ControllerClient {
       );
     }
 
-    // Authenticate and create session
-    const sessionToken = await this.sessionManager.authenticate();
-    const relayId = await this.sessionManager.createSession(uuid);
+    // Authenticate with Ed25519 keypair (get Controller ID)
+    const controllerId = await this.sessionManager.authenticate();
+    
+    // Create session with cardhost (get session token)
+    const sessionToken = await this.sessionManager.createSession(uuid);
 
     // Create transport for jsapdu-over-ip
-    // The Router's /api/jsapdu/rpc endpoint bridges to the Cardhost
+    // The Router's /api/jsapdu/rpc endpoint bridges to the Cardhost via session
+    // SECURITY: Session token identifies the target Cardhost, no UUID needed
     this.transport = new RouterClientTransport({
       rpcEndpoint: `${this.config.routerUrl}/api/jsapdu/rpc`,
       sessionToken,
-      cardhostUuid: uuid,
+      controllerId,
     });
 
     // Create RemoteSmartCardPlatform (jsapdu-over-ip client)

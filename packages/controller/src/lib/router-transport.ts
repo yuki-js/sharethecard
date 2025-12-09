@@ -16,13 +16,18 @@ import { fetch } from "undici";
 
 export interface RouterClientTransportConfig {
   rpcEndpoint: string;
-  sessionToken: string;
-  cardhostUuid: string;
+  sessionToken: string; // Session ID identifies the Controller-Cardhost connection
+  controllerId: string; // Router-derived Controller ID
 }
 
 /**
  * HTTP-based client transport for Controller
- * Sends RPC requests to Router which forwards to Cardhost
+ * Sends RPC requests to Router which forwards to Cardhost via session
+ *
+ * SECURITY (2025-12-09):
+ * - Uses x-controller-id for authentication
+ * - Uses x-session-token for routing (identifies which Cardhost)
+ * - NO x-cardhost-uuid: Session already identifies the target Cardhost
  */
 export class RouterClientTransport implements ClientTransport {
   private eventCallbacks: Set<(event: RpcEvent) => void> = new Set();
@@ -31,14 +36,18 @@ export class RouterClientTransport implements ClientTransport {
 
   /**
    * Call RPC method via HTTP POST
+   *
+   * SECURITY: Session token identifies the target Cardhost
+   * No need to send Cardhost UUID separately
    */
   async call(request: RpcRequest): Promise<RpcResponse> {
     const response = await fetch(this.config.rpcEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-controller-id": this.config.controllerId,
         "x-session-token": this.config.sessionToken,
-        "x-cardhost-uuid": this.config.cardhostUuid,
+        // NO x-cardhost-uuid: Session token already identifies the target
       },
       body: JSON.stringify(request),
     });

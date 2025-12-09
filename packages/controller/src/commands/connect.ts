@@ -4,20 +4,22 @@ import { ControllerClient } from "../lib/index.js";
 export type ConnectCommandArgs = {
   router?: string;
   cardhost?: string;
-  token?: string;
   verbose?: boolean;
 };
 
 /**
  * Connect command using new ControllerClient library
  * Establishes connection and keeps it alive
+ *
+ * NEW API (2025-12-09): No longer requires bearer token
+ * Authentication via Ed25519 keypair stored in ~/.controller/
  */
 export async function run(argv: ConnectCommandArgs): Promise<void> {
-  const { router, cardhost, token, verbose } = argv;
+  const { router, cardhost, verbose } = argv;
 
-  if (!router || !cardhost || !token) {
+  if (!router || !cardhost) {
     console.error(
-      chalk.red("Missing required options: --router, --cardhost, --token"),
+      chalk.red("Missing required options: --router, --cardhost"),
     );
     process.exitCode = 2;
     return;
@@ -26,7 +28,6 @@ export async function run(argv: ConnectCommandArgs): Promise<void> {
   try {
     const client = new ControllerClient({
       routerUrl: router,
-      token,
       cardhostUuid: cardhost,
       verbose,
     });

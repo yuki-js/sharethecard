@@ -1,19 +1,42 @@
 /**
  * Cardhost WebSocket Handler
  * Handles WebSocket connections from cardhosts
+ *
+ * SECURITY: Cardhost is identified by session token, not by self-declared UUID
  */
 
 import type { WebSocket } from "ws";
+import type { IncomingMessage } from "node:http";
 import { CardhostUseCase } from "../../usecase/cardhost-usecase.js";
 import { TransportUseCase } from "../../usecase/transport-usecase.js";
 
 export function handleCardhostWebSocket(
   ws: WebSocket,
-  cardhostUuid: string,
+  req: IncomingMessage,
   cardhostUseCase: CardhostUseCase,
   transportUseCase: TransportUseCase,
 ): void {
-  // Validate cardhost is authenticated
+  // SECURITY: Get session token from header (issued after authentication)
+  const sessionToken = String(req.headers["x-cardhost-session"] ?? "");
+  
+  if (!sessionToken) {
+    try {
+      ws.close(1008, "Missing session token");
+    } catch {}
+    return;
+  }
+
+  // Validate session and get UUID from Router's records
+  const cardhostUuid = cardhostUseCase.getUuidBySession(sessionToken);
+  
+  if (!cardhostUuid) {
+    try {
+      ws.close(1008, "Invalid or expired session");
+    } catch {}
+    return;
+  }
+
+  // Double-check authentication status
   if (!cardhostUseCase.isConnected(cardhostUuid)) {
     try {
       ws.close(1008, "Cardhost not authenticated");

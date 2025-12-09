@@ -6,20 +6,22 @@ import { parseApduHex } from "@remote-apdu/shared";
 export type InteractiveCommandArgs = {
   router?: string;
   cardhost?: string;
-  token?: string;
   verbose?: boolean;
 };
 
 /**
  * Interactive command using new ControllerClient library
  * Provides REPL-like interface for multiple APDU commands
+ *
+ * NEW API (2025-12-09): No longer requires bearer token
+ * Authentication via Ed25519 keypair stored in ~/.controller/
  */
 export async function run(argv: InteractiveCommandArgs): Promise<void> {
-  const { router, cardhost, token, verbose } = argv;
+  const { router, cardhost, verbose } = argv;
 
-  if (!router || !cardhost || !token) {
+  if (!router || !cardhost) {
     console.error(
-      chalk.red("Missing required options: --router, --cardhost, --token"),
+      chalk.red("Missing required options: --router, --cardhost"),
     );
     process.exitCode = 2;
     return;
@@ -27,7 +29,6 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
 
   const client = new ControllerClient({
     routerUrl: router,
-    token,
     cardhostUuid: cardhost,
     verbose,
   });

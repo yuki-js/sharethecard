@@ -12,11 +12,12 @@ import { webcrypto } from "node:crypto";
 import { generateUuidV4 } from "@remote-apdu/shared";
 
 export interface CardHostPersistedConfig {
-  uuid: string;
+  uuid: string; // Router-derived UUID (peer_<hash>)
   signingPublicKey: string;
   signingPrivateKey: string;
   routerUrl: string;
   createdAt: string;
+  uuidSource: "router-derived" | "legacy"; // Track UUID origin
 }
 
 const CONFIG_DIR = join(homedir(), ".cardhost");
@@ -73,13 +74,12 @@ export class ConfigManager {
   }
 
   /**
-   * Create new configuration with UUID and Ed25519 keypair
+   * Create new configuration with Ed25519 keypair
+   * NOTE: UUID is NOT generated here - it will be derived by Router from public key
    */
   private async createNew(
     routerUrl?: string,
   ): Promise<CardHostPersistedConfig> {
-    const uuid = generateUuidV4();
-
     // Generate Ed25519 keypair for signing (Cardhost authentication)
     const keyPair = (await webcrypto.subtle.generateKey(
       { name: "Ed25519" },
@@ -100,12 +100,16 @@ export class ConfigManager {
     const signingPublicKey = Buffer.from(publicKeySpki).toString("base64");
     const signingPrivateKey = Buffer.from(privateKeyPkcs8).toString("base64");
 
+    // Temporary placeholder UUID - will be replaced by Router-derived UUID on first auth
+    const placeholderUuid = "pending-router-derivation";
+
     this.config = {
-      uuid,
+      uuid: placeholderUuid,
       signingPublicKey,
       signingPrivateKey,
       routerUrl: routerUrl ?? process.env.ROUTER_URL ?? "http://localhost:3000",
       createdAt: new Date().toISOString(),
+      uuidSource: "router-derived",
     };
 
     this.save();
@@ -148,13 +152,21 @@ export class ConfigManager {
       throw new Error("Invalid config: missing required fields");
     }
 
-    // Validate UUID format
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        config.uuid,
-      )
-    ) {
-      throw new Error("Invalid UUID format");
+    // Validate UUID format based on source
+    if (config.uuidSource === "router-derived" || config.uuid.startsWith("peer_")) {
+      // Router-derived UUID format: peer_<base64url>
+      if (!/^peer_[A-Za-z0-9_-]+$/.test(config.uuid) && config.uuid !== "pending-router-derivation") {
+        throw new Error(`Invalid Router-derived UUID format: ${config.uuid}`);
+      }
+    } else {
+      // Legacy UUID v4 format (backward compatibility)
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          config.uuid,
+        )
+      ) {
+        throw new Error("Invalid UUID format");
+      }
     }
   }
 
@@ -188,5 +200,25 @@ export class ConfigManager {
 
     this.config.routerUrl = routerUrl;
     this.save();
+  }
+
+  /**
+   * Update UUID with Router-derived value
+   * Called after successful authentication when Router returns derived UUID
+   */
+  async updateUuid(derivedUuid: string): Promise<void> {
+    if (!this.config) {
+      throw new Error("Config not loaded");
+    }
+
+    // Only update if current UUID is placeholder or different
+    if (
+      this.config.uuid === "pending-router-derivation" ||
+      this.config.uuid !== derivedUuid
+    ) {
+      this.config.uuid = derivedUuid;
+      this.config.uuidSource = "router-derived";
+      this.save();
+    }
   }
 }

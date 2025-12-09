@@ -86,16 +86,23 @@ export class CardhostService {
       this.authManager.setRouterUrl(config.routerUrl);
     }
 
-    // Authenticate with Router
-    await this.authManager.authenticate(config);
+    // Authenticate with Router (receive Router-derived UUID)
+    const authResult = await this.authManager.authenticate(config);
+    
+    // Update config with Router-derived UUID if provided
+    if (authResult.derivedUuid && authResult.derivedUuid !== config.uuid) {
+      await this.configManager.updateUuid(authResult.derivedUuid);
+      // Refresh config after UUID update
+      config = this.configManager.getConfig();
+    }
 
     // Lazy initialization: platform will be initialized by Controller via jsapdu-over-ip 'init' RPC.
     // Avoid double-initialization here to prevent RemoteSmartCardError: "Platform already initialized".
 
     // Create transport for jsapdu-over-ip (use active AuthManager URL to avoid stale persisted config)
+    // SECURITY: No UUID passed - Router identifies Cardhost by authenticated connection
     this.transport = new RouterServerTransport({
       routerUrl: this.authManager.getRouterUrl(),
-      cardhostUuid: config.uuid,
     });
 
     // Create SmartCardPlatformAdapter (jsapdu-over-ip server side)
@@ -134,6 +141,10 @@ export class CardhostService {
 
   /**
    * Get Cardhost UUID
+   *
+   * NOTE: This UUID is Router-derived and should NOT be sent to Router.
+   * It's only for local reference/debugging purposes.
+   * Router identifies Cardhost by authenticated connection, not by UUID.
    */
   getUuid(): string {
     return this.configManager.getUuid();

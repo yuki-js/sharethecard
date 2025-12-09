@@ -5,7 +5,6 @@ import { parseApduHex } from "@remote-apdu/shared";
 export type SendCommandArgs = {
   router?: string;
   cardhost?: string;
-  token?: string;
   apdu?: string;
   verbose?: boolean;
 };
@@ -13,9 +12,12 @@ export type SendCommandArgs = {
 /**
  * Send command using new ControllerClient library
  * Sends single APDU command and displays response
+ *
+ * NEW API (2025-12-09): No longer requires bearer token
+ * Authentication via Ed25519 keypair stored in ~/.controller/
  */
 export async function run(argv: SendCommandArgs): Promise<void> {
-  const { router, cardhost, token, apdu, verbose } = argv;
+  const { router, cardhost, apdu, verbose } = argv;
 
   if (!apdu) {
     console.error(chalk.red('Missing required option: --apdu "<HEX>"'));
@@ -23,9 +25,9 @@ export async function run(argv: SendCommandArgs): Promise<void> {
     return;
   }
 
-  if (!router || !cardhost || !token) {
+  if (!router || !cardhost) {
     console.error(
-      chalk.red("Missing required options: --router, --cardhost, --token"),
+      chalk.red("Missing required options: --router, --cardhost"),
     );
     process.exitCode = 2;
     return;
@@ -47,7 +49,6 @@ export async function run(argv: SendCommandArgs): Promise<void> {
   try {
     await using client = new ControllerClient({
       routerUrl: router,
-      token,
       cardhostUuid: cardhost,
       verbose,
     });

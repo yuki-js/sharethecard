@@ -3,19 +3,21 @@ import { ControllerClient } from "../lib/index.js";
 
 export type ListCommandArgs = {
   router?: string;
-  token?: string;
   verbose?: boolean;
 };
 
 /**
  * List command implementation using new ControllerClient library
  * Lists available Cardhosts from Router
+ *
+ * NEW API (2025-12-09): No longer requires bearer token
+ * Authentication via Ed25519 keypair stored in ~/.controller/
  */
 export async function run(argv: ListCommandArgs): Promise<void> {
-  const { router, token, verbose } = argv;
+  const { router, verbose } = argv;
 
-  if (!router || !token) {
-    console.error(chalk.red("Missing required options: --router, --token"));
+  if (!router) {
+    console.error(chalk.red("Missing required option: --router"));
     process.exitCode = 2;
     return;
   }
@@ -23,7 +25,6 @@ export async function run(argv: ListCommandArgs): Promise<void> {
   try {
     const client = new ControllerClient({
       routerUrl: router,
-      token,
       verbose,
     });
 

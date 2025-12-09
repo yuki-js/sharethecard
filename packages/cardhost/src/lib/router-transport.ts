@@ -14,7 +14,7 @@ import type {
 
 export interface RouterTransportConfig {
   routerUrl: string;
-  cardhostUuid: string;
+  // SECURITY: No cardhostUuid - Router identifies by authenticated connection
 }
 
 /**
@@ -53,6 +53,12 @@ export class RouterServerTransport implements ServerTransport {
 
   /**
    * Start transport (connect to Router via WebSocket)
+   *
+   * SECURITY FIX (2025-12-09):
+   * - Endpoint: /ws/cardhost
+   * - NO UUID header sent (Router identifies by TLS/public key)
+   * - Cardhost doesn't need to know its own UUID
+   * - Router performs identification after connection
    */
   async start(): Promise<void> {
     if (this.connected) {
@@ -65,12 +71,9 @@ export class RouterServerTransport implements ServerTransport {
         .replace(/^https:/, "wss:")
         .replace(/\/$/, "");
 
-      this.ws = new WebSocket(`${wsUrl}/api/jsapdu/ws`, {
-        headers: {
-          "x-role": "cardhost",
-          "x-cardhost-uuid": this.config.cardhostUuid,
-        },
-      });
+      // SECURITY: No UUID header - Router identifies by public key auth
+      // Cardhost should not self-declare its identity
+      this.ws = new WebSocket(`${wsUrl}/ws/cardhost`);
 
       this.ws.on("open", () => {
         this.connected = true;

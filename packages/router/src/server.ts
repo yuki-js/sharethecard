@@ -91,10 +91,12 @@ export async function startServer(
         router.transportUseCase,
       );
     } else if (url.startsWith("/ws/cardhost")) {
-      const cardhostUuid = String(req.headers["x-cardhost-uuid"] ?? "");
+      // SECURITY FIX: Do NOT read x-cardhost-uuid from client
+      // Router identifies cardhost by authenticated connection
+      // Connection must already be authenticated via REST API
       handleCardhostWebSocket(
         ws,
-        cardhostUuid,
+        req,
         router.cardhostUseCase,
         router.transportUseCase,
       );
