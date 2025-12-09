@@ -35,6 +35,13 @@ export class SessionRelay {
   private cardhostConnections: Map<string, ConnectionInfo> = new Map(); // key: cardhostUuid
   private initialized = false;
 
+  // Pending RpcResponse resolvers keyed by `${cardhostUuid}:${requestId}`
+  private pendingResponses: Map<string, { resolve: (resp: RpcResponse) => void; timer: NodeJS.Timeout; }> = new Map();
+
+  private makePendingKey(cardhostUuid: string, id: string): string {
+    return `${cardhostUuid}:${id}`;
+  }
+
   /**
    * Initialize relay service
    */
@@ -158,7 +165,7 @@ export class SessionRelay {
 
     // Get Cardhost connection
     const cardhostConn = this.cardhostConnections.get(relaySession.cardhostUuid);
-    if (!cardhostConn) {
+    if (!cardhostConn?.send) {
       return {
         id: request.id,
         error: {
@@ -168,16 +175,51 @@ export class SessionRelay {
       };
     }
 
-    // Forward request to Cardhost
-    // In a real implementation with WebSocket, this would use the connection's send method
-    // For now, return a placeholder response
-    return {
-      id: request.id,
-      error: {
-        code: 'NOT_IMPLEMENTED',
-        message: 'RPC relay not yet implemented'
+    // Forward request to Cardhost via WebSocket and await response
+    const envelope = { type: 'rpc-request', payload: request };
+    const key = this.makePendingKey(relaySession.cardhostUuid, request.id);
+
+    // Prevent accidental duplicate request IDs
+    if (this.pendingResponses.has(key)) {
+      return {
+        id: request.id,
+        error: {
+          code: 'DUPLICATE_REQUEST_ID',
+          message: 'Duplicate request id already pending'
+        }
+      };
+    }
+
+    return await new Promise<RpcResponse>((resolve) => {
+      const timer = setTimeout(() => {
+        this.pendingResponses.delete(key);
+        resolve({
+          id: request.id,
+          error: {
+            code: 'TIMEOUT',
+            message: 'RPC relay timeout'
+          }
+        });
+      }, 30_000);
+
+      this.pendingResponses.set(key, { resolve, timer });
+
+      try {
+        // Send stringified envelope
+        cardhostConn.send!(JSON.stringify(envelope));
+        this.updateActivity(relaySession!.relayId);
+      } catch {
+        clearTimeout(timer);
+        this.pendingResponses.delete(key);
+        resolve({
+          id: request.id,
+          error: {
+            code: 'SEND_FAILED',
+            message: 'Failed to send to cardhost'
+          }
+        });
       }
-    };
+    });
   }
 
   /**
@@ -251,5 +293,30 @@ export class SessionRelay {
       controllers: this.controllerConnections.size,
       cardhosts: this.cardhostConnections.size
     };
+  }
+
+  /**
+   * Handle incoming message from Cardhost WebSocket connection
+   * Resolves pending RpcResponse promises created by relayToCardhost
+   */
+  public handleCardhostMessage(cardhostUuid: string, data: unknown): void {
+    try {
+      const raw = data instanceof Buffer ? data.toString('utf8') : String(data);
+      const message = JSON.parse(raw);
+
+      if (message?.type === 'rpc-response' && message.payload && typeof message.payload.id === 'string') {
+        const resp = message.payload as RpcResponse;
+        const key = `${cardhostUuid}:${resp.id}`;
+        const pending = this.pendingResponses.get(key);
+        if (pending) {
+          clearTimeout(pending.timer);
+          this.pendingResponses.delete(key);
+          pending.resolve(resp);
+        }
+      }
+      // Future: route rpc-event to controller event sinks
+    } catch {
+      // Ignore malformed messages
+    }
   }
 }

@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { createInterface } from 'node:readline';
 import { ControllerClient, CommandApdu } from '../lib/index.js';
+import { parseApduHex } from '@remote-apdu/shared';
 
 export type InteractiveCommandArgs = {
   router?: string;
@@ -64,17 +65,10 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
         const hex = trimmed.slice(5).trim();
         try {
           // Parse hex string
-          const cleaned = hex.replace(/\s+/g, '');
-          if (!/^[0-9a-fA-F]*$/.test(cleaned) || cleaned.length % 2 !== 0) {
-            throw new Error('Invalid APDU hex format');
-          }
+          const bytes = parseApduHex(hex);
 
-          const bytes = new Uint8Array(cleaned.length / 2);
-          for (let i = 0; i < cleaned.length; i += 2) {
-            bytes[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
-          }
-
-          const command = CommandApdu.fromUint8Array(bytes);
+          const commandBytes = Uint8Array.from(bytes as unknown as Uint8Array);
+          const command = CommandApdu.fromUint8Array(commandBytes as any);
 
           if (verbose) {
             console.info(chalk.gray(`[verbose] Sending: ${hex}`));

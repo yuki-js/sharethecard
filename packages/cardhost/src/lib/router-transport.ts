@@ -134,7 +134,7 @@ export class RouterServerTransport implements ServerTransport {
         }
       }
     } catch (error) {
-      console.error('Error handling message:', error);
+      // Suppress console output in library code; allow higher layers to handle errors
     }
   }
 

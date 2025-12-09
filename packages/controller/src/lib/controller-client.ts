@@ -8,7 +8,7 @@
  */
 
 import { RemoteSmartCardPlatform } from '@aokiapp/jsapdu-over-ip/client';
-import { CommandApdu, ResponseApdu } from '@aokiapp/jsapdu-interface';
+import { CommandApdu, ResponseApdu, SmartCardError } from '@aokiapp/jsapdu-interface';
 import { SessionManager } from './session-manager.js';
 import { RouterClientTransport } from './router-transport.js';
 import type { ControllerConfig, CardhostInfo } from '@remote-apdu/shared';
@@ -68,11 +68,17 @@ export class ControllerClient {
   async connect(cardhostUuid?: string): Promise<void> {
     const uuid = cardhostUuid ?? this.config.cardhostUuid;
     if (!uuid) {
-      throw new Error('Cardhost UUID required. Provide via config or parameter.');
+      throw new SmartCardError(
+        'INVALID_PARAMETER',
+        'Cardhost UUID required. Provide via config or parameter.'
+      );
     }
 
     if (this.platform) {
-      throw new Error('Already connected. Disconnect first.');
+      throw new SmartCardError(
+        'ALREADY_CONNECTED',
+        'Already connected. Disconnect first.'
+      );
     }
 
     // Authenticate and create session
@@ -90,7 +96,9 @@ export class ControllerClient {
     // Create RemoteSmartCardPlatform (jsapdu-over-ip client)
     // This provides the full jsapdu-interface API over the network
     this.platform = new RemoteSmartCardPlatform(this.transport);
-    await this.platform.init();
+    // Idempotent init: tolerate server-side pre-initialization by forcing init(true)
+    // This sets local initialized state and ensures platform is ready for getDeviceInfo().
+    await this.platform.init(true);
 
     this.connectedCardhostUuid = uuid;
   }
@@ -119,7 +127,10 @@ export class ControllerClient {
    */
   getPlatform(): RemoteSmartCardPlatform {
     if (!this.platform) {
-      throw new Error('Not connected. Call connect() first.');
+      throw new SmartCardError(
+        'NOT_CONNECTED',
+        'Not connected. Call connect() first.'
+      );
     }
     return this.platform;
   }
@@ -137,22 +148,45 @@ export class ControllerClient {
     const platform = this.getPlatform();
 
     // Follow jsapdu pattern: get device → start session → transmit
-    // Using await using for automatic resource cleanup
+    // Use explicit try/finally to avoid suppressed disposal errors in test environments
     const devices = await platform.getDeviceInfo();
     if (devices.length === 0) {
-      throw new Error('No devices available on Cardhost');
+      throw new SmartCardError(
+        'NO_READERS',
+        'No devices available on Cardhost'
+      );
     }
 
-    await using device = await platform.acquireDevice(devices[0].id);
-    
-    // Wait for card if not present
-    const isPresent = await device.isCardPresent();
-    if (!isPresent) {
-      throw new Error('Card not present. Insert card and try again.');
-    }
+    const device = await platform.acquireDevice(devices[0].id);
+    try {
+      // Wait for card if not present
+      const isPresent = await device.isCardPresent();
+      if (!isPresent) {
+        throw new SmartCardError(
+          'CARD_NOT_PRESENT',
+          'Card not present. Insert card and try again.'
+        );
+      }
 
-    await using card = await device.startSession();
-    return await card.transmit(command);
+      const card = await device.startSession();
+      try {
+        return await card.transmit(command);
+      } finally {
+        try {
+          await card.release();
+        } catch (err) {
+          console.warn('[ControllerClient] Card cleanup error:', err);
+          // Continue despite cleanup error to avoid masking primary results
+        }
+      }
+    } finally {
+      try {
+        await device.release();
+      } catch (err) {
+        console.warn('[ControllerClient] Device cleanup error:', err);
+        // Continue despite cleanup error to avoid masking primary results
+      }
+    }
   }
 
   /**

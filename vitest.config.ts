@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Network E2E enabled: starts real runtime HTTP/WS server on dedicated ports during tests.
     include: [
       'tests/unit/**/*.test.ts',
       'tests/integration/**/*.test.ts',

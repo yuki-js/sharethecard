@@ -1,5 +1,6 @@
 import chalk from 'chalk';
 import { ControllerClient, CommandApdu } from '../lib/index.js';
+import { parseApduHex } from '@remote-apdu/shared';
 
 export type SendCommandArgs = {
   router?: string;
@@ -27,14 +28,15 @@ export async function run(argv: SendCommandArgs): Promise<void> {
     process.exitCode = 2;
     return;
   }
-
-  // Parse APDU hex string
-  const cleaned = apdu.replace(/\s+/g, '');
-  if (!/^[0-9a-fA-F]*$/.test(cleaned) || cleaned.length % 2 !== 0 || cleaned.length < 8) {
-    console.error(chalk.red('Invalid APDU hex format (must be even-length hex, at least 4 bytes)'));
-    process.exitCode = 2;
-    return;
-  }
+ // Parse APDU hex string
+ let bytes: Uint8Array<ArrayBuffer>;
+ try {
+   bytes = parseApduHex(apdu);
+ } catch {
+   console.error(chalk.red('Invalid APDU hex format (must be even-length hex, at least 4 bytes)'));
+   process.exitCode = 2;
+   return;
+ }
 
   try {
     await using client = new ControllerClient({
@@ -54,13 +56,10 @@ export async function run(argv: SendCommandArgs): Promise<void> {
       console.info(chalk.gray(`[verbose] Sending APDU: ${apdu}`));
     }
 
-    // Parse hex to CommandApdu
-    const bytes = new Uint8Array(cleaned.length / 2);
-    for (let i = 0; i < cleaned.length; i += 2) {
-      bytes[i / 2] = parseInt(cleaned.slice(i, i + 2), 16);
-    }
+    // Parse hex to CommandApdu (parsed earlier)
 
-    const command = CommandApdu.fromUint8Array(bytes);
+    const commandBytes = Uint8Array.from(bytes as unknown as Uint8Array);
+    const command = CommandApdu.fromUint8Array(commandBytes as any);
     const response = await client.transmit(command);
 
     // Display response

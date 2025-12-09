@@ -2,45 +2,46 @@
  * Cardhost Service - Core Library
  * Wraps SmartCardPlatform with jsapdu-over-ip ServerTransport
  * Provides testable, composable Cardhost functionality
- * 
+ *
  * Spec: docs/what-to-make.md Section 3.2 - Cardhost
  * Reference: research/jsapdu-over-ip/src/server/platform-adapter.ts
  */
 
-import { SmartCardPlatformAdapter } from '@aokiapp/jsapdu-over-ip/server';
-import type { SmartCardPlatform } from '@aokiapp/jsapdu-interface';
-import { ConfigManager } from './config-manager.js';
-import { AuthManager } from './auth-manager.js';
-import { RouterServerTransport } from './router-transport.js';
-import { MockSmartCardPlatform } from './mock-platform.js';
+import { SmartCardPlatformAdapter } from "@aokiapp/jsapdu-over-ip/server";
+import type { SmartCardPlatform } from "@aokiapp/jsapdu-interface";
+import { SmartCardError } from "@aokiapp/jsapdu-interface";
+import { ConfigManager } from "./config-manager.js";
+import { AuthManager } from "./auth-manager.js";
+import { RouterServerTransport } from "./router-transport.js";
+import { MockSmartCardPlatform } from "./mock-platform.js";
 
 export interface CardhostServiceConfig {
   routerUrl: string;
-  platform?: SmartCardPlatform;  // Allow mock for testing
-  configManager?: ConfigManager;
+  platform: SmartCardPlatform;
+  configManager: ConfigManager;
   authManager?: AuthManager;
 }
 
 /**
  * Cardhost Service
- * 
+ *
  * This is the library core - fully testable without running as standalone service.
- * 
+ *
  * Usage:
  * ```typescript
  * // With real hardware
  * const service = new CardhostService({ routerUrl: 'http://router.example.com' });
- * 
+ *
  * // With mock platform (for testing)
  * const mockPlatform = new MockSmartCardPlatform();
- * const service = new CardhostService({ 
+ * const service = new CardhostService({
  *   routerUrl: 'http://localhost:3000',
- *   platform: mockPlatform 
+ *   platform: mockPlatform
  * });
- * 
+ *
  * await service.connect();
  * // Now Controller can send APDU commands via Router
- * 
+ *
  * await service.disconnect();
  * ```
  */
@@ -53,18 +54,14 @@ export class CardhostService {
   private connected = false;
 
   constructor(config: CardhostServiceConfig) {
-    // Use provided platform or create mock (real PcscPlatform requires hardware)
-    // In production runtime, this would use PcscPlatform from @aokiapp/jsapdu-pcsc
-    this.platform = config.platform ?? new MockSmartCardPlatform();
-
-    // Use provided managers or create new ones
-    this.configManager = config.configManager ?? new ConfigManager();
+    this.platform = config.platform;
+    this.configManager = config.configManager;
     this.authManager = config.authManager ?? new AuthManager(config.routerUrl);
   }
 
   /**
    * Connect to Router and start serving APDU requests
-   * 
+   *
    * Steps:
    * 1. Load or create UUID and keypair
    * 2. Authenticate with Router (challenge-response)
@@ -74,22 +71,32 @@ export class CardhostService {
    */
   async connect(): Promise<void> {
     if (this.connected) {
-      throw new Error('Already connected');
+      throw new SmartCardError("ALREADY_CONNECTED", "Already connected");
     }
 
     // Load/create config (UUID + keypair)
-    const config = await this.configManager.loadOrCreate(this.authManager['routerUrl']);
+    let config = await this.configManager.loadOrCreate(
+      this.authManager.getRouterUrl(),
+    );
+
+    // Ensure persisted routerUrl matches the active runtime URL (e.g., test port)
+    if (config.routerUrl !== this.authManager.getRouterUrl()) {
+      await this.configManager.updateRouterUrl(this.authManager.getRouterUrl());
+      // Refresh local config and auth manager to use the updated router URL
+      config = this.configManager.getConfig();
+      this.authManager.setRouterUrl(config.routerUrl);
+    }
 
     // Authenticate with Router
     await this.authManager.authenticate(config);
 
-    // Initialize platform
-    await this.platform.init();
+    // Lazy initialization: platform will be initialized by Controller via jsapdu-over-ip 'init' RPC.
+    // Avoid double-initialization here to prevent RemoteSmartCardError: "Platform already initialized".
 
-    // Create transport for jsapdu-over-ip
+    // Create transport for jsapdu-over-ip (use active AuthManager URL to avoid stale persisted config)
     this.transport = new RouterServerTransport({
-      routerUrl: config.routerUrl,
-      cardhostUuid: config.uuid
+      routerUrl: this.authManager.getRouterUrl(),
+      cardhostUuid: config.uuid,
     });
 
     // Create SmartCardPlatformAdapter (jsapdu-over-ip server side)

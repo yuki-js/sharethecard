@@ -7,6 +7,7 @@
 
 import { fetch } from 'undici';
 import { webcrypto } from 'node:crypto';
+import { canonicalizeJson } from '@remote-apdu/shared';
 import type { CardHostPersistedConfig } from './config-manager.js';
 
 export interface AuthenticationResult {
@@ -94,7 +95,7 @@ export class AuthManager {
     );
 
     // Create canonical payload
-    const payload = this.canonicalizeJson(challenge);
+    const payload = canonicalizeJson(challenge);
 
     // Sign
     const signature = await webcrypto.subtle.sign(
@@ -107,35 +108,16 @@ export class AuthManager {
   }
 
   /**
-   * Canonicalize JSON for consistent signing
-   * Sorts object keys recursively
-   */
-  private canonicalizeJson(input: unknown): Uint8Array {
-    const canonical = JSON.stringify(this.sortKeys(input));
-    return new Uint8Array(Buffer.from(canonical, 'utf8'));
-  }
-
-  private sortKeys(value: unknown): unknown {
-    if (Array.isArray(value)) {
-      return value.map(v => this.sortKeys(v));
-    }
-    if (value && typeof value === 'object') {
-      const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-        a.localeCompare(b)
-      );
-      const obj: Record<string, unknown> = {};
-      for (const [k, v] of entries) {
-        obj[k] = this.sortKeys(v);
-      }
-      return obj;
-    }
-    return value;
-  }
-
-  /**
    * Update router URL for authentication
    */
   setRouterUrl(url: string): void {
     this.routerUrl = url;
+  }
+
+  /**
+   * Get router URL (avoid private property access)
+   */
+  getRouterUrl(): string {
+    return this.routerUrl;
   }
 }

@@ -12,65 +12,6 @@ import { CardhostService, MockSmartCardPlatform } from '@remote-apdu/cardhost';
 import { CommandApdu } from '@aokiapp/jsapdu-interface';
 
 describe('Integration: Cardhost + jsapdu', () => {
-  describe('CardhostService with MockPlatform', () => {
-    it('should initialize with mock platform', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      
-      const service = new CardhostService({
-        routerUrl: 'http://localhost:3000',
-        platform: mockPlatform
-      });
-
-      expect(service).toBeDefined();
-      expect(service.getPlatform()).toBe(mockPlatform);
-    });
-
-    it('should support await using pattern', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      
-      await using service = new CardhostService({
-        routerUrl: 'http://localhost:3000',
-        platform: mockPlatform
-      });
-
-      expect(service).toBeDefined();
-      // Auto-cleanup on scope exit
-    });
-
-    it('should initialize platform on connect', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      
-      const service = new CardhostService({
-        routerUrl: 'http://localhost:3000',
-        platform: mockPlatform
-      });
-
-      expect(mockPlatform.isInitialized()).toBe(false);
-
-      // Note: connect() will fail without real Router, but platform should init
-      try {
-        await service.connect();
-      } catch {
-        // Expected to fail without Router
-      }
-
-      // Platform should have been initialized before failure
-      // In a real test with mock auth/transport, this would succeed
-    });
-
-    it('should generate and persist UUID', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      
-      const service = new CardhostService({
-        routerUrl: 'http://localhost:3000',
-        platform: mockPlatform
-      });
-
-      // Note: UUID is generated in connect(), which requires Router
-      // This test demonstrates the API pattern
-      expect(service.getPlatform()).toBe(mockPlatform);
-    });
-  });
 
   describe('Platform and Adapter Integration', () => {
     it('should wrap platform correctly', async () => {

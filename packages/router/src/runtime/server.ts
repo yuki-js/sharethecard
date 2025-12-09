@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { RouterService } from '../lib/index.js';
 import type { SessionToken } from '@remote-apdu/shared';
+import { WebSocketServer } from 'ws';
 
 const app = new Hono();
 const router = new RouterService();
@@ -186,12 +187,18 @@ app.get('/stats', (c) => {
 });
 
 /**
- * Main entry point
+ * Start the real Router runtime server (HTTP + WebSocket) inside the current process.
+ * Opens a TCP port and behaves identically to CLI invocation.
  */
-async function main(): Promise<void> {
-  const port = Number(process.env.PORT ?? 3000);
-  const host = process.env.HOST ?? '0.0.0.0';
-
+export async function startRuntimeServer(
+  port: number = Number(process.env.PORT ?? 3000),
+  host: string = process.env.HOST ?? '0.0.0.0'
+): Promise<{
+  server: ReturnType<typeof serve>;
+  wss: import('ws').WebSocketServer;
+  router: RouterService;
+  stop: () => Promise<void>;
+}> {
   // Start Router service
   await router.start();
 
@@ -205,11 +212,102 @@ async function main(): Promise<void> {
     hostname: host
   });
 
+  // WebSocket RPC relay handler
+  // Cast is required because @hono/node-server returns a ServerType union (http/https/http2),
+  // while ws expects a concrete http/https server type. At runtime this is an http server.
+  const wss = new WebSocketServer({ server: server as any });
+
+  wss.on('connection', (ws, req) => {
+    const url = req.url || '';
+    if (!url.startsWith('/api/jsapdu/ws')) {
+      try { ws.close(1008, 'Invalid path'); } catch {}
+      return;
+    }
+
+    const role = String(req.headers['x-role'] ?? '');
+    const sessionToken = String(req.headers['x-session-token'] ?? '');
+    const cardhostUuid = String(req.headers['x-cardhost-uuid'] ?? '');
+    const relay = router.getSessionRelay();
+
+    if (role === 'cardhost') {
+      if (!cardhostUuid) {
+        try { ws.close(1008, 'x-cardhost-uuid required'); } catch {}
+        return;
+      }
+      if (!router.isCardhostConnected(cardhostUuid)) {
+        try { ws.close(1008, 'Cardhost not authenticated'); } catch {}
+        return;
+      }
+
+      relay.registerCardhostConnection(cardhostUuid, {
+        id: `ws-${Date.now()}`,
+        role: 'cardhost',
+        identifier: cardhostUuid,
+        send: (payload: unknown) => {
+          try {
+            ws.send(typeof payload === 'string' ? payload : JSON.stringify(payload));
+          } catch {}
+        }
+      });
+
+      ws.on('message', (data) => {
+        relay.handleCardhostMessage(cardhostUuid, data);
+      });
+
+      ws.on('close', () => {
+        relay.unregisterCardhost(cardhostUuid);
+        router.getCardhostAuth().disconnect(cardhostUuid);
+      });
+    } else if (role === 'controller') {
+      if (!sessionToken || !router.validateControllerSession(sessionToken)) {
+        try { ws.close(1008, 'Invalid session token'); } catch {}
+        return;
+      }
+
+      relay.registerControllerConnection(sessionToken, {
+        id: `ws-${Date.now()}`,
+        role: 'controller',
+        identifier: sessionToken,
+        send: (payload: unknown) => {
+          try {
+            ws.send(typeof payload === 'string' ? payload : JSON.stringify(payload));
+          } catch {}
+        }
+      });
+
+      ws.on('close', () => {
+        relay.unregisterController(sessionToken);
+      });
+    } else {
+      try { ws.close(1008, 'x-role required'); } catch {}
+    }
+  });
+
+  return {
+    server,
+    wss,
+    router,
+    async stop() {
+      try { wss.close(); } catch {}
+      await router.stop();
+      try { server.close(); } catch {}
+    }
+  };
+}
+
+/**
+ * Main entry point
+ */
+async function main(): Promise<void> {
+  const port = Number(process.env.PORT ?? 3000);
+  const host = process.env.HOST ?? '0.0.0.0';
+
+  const runtime = await startRuntimeServer(port, host);
+
   // Graceful shutdown
   const shutdown = async () => {
     console.log('\nShutting down Router...');
-    await router.stop();
-    server.close();
+    await runtime.stop();
     console.log('✓ Stopped');
     process.exit(0);
   };
@@ -218,9 +316,11 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
 }
 
-main().catch((error) => {
-  console.error('Fatal error:', error);
-  process.exit(1);
-});
+if (!process.env.VITEST) {
+  main().catch((error) => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
+}
 
 export default app;

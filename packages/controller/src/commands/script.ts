@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { readFile } from 'node:fs/promises';
 import { ControllerClient, CommandApdu } from '../lib/index.js';
+import { parseApduHex } from '@remote-apdu/shared';
 
 export type ScriptCommandArgs = {
   router?: string;
@@ -77,17 +78,10 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
       
       try {
         // Parse hex
-        const cleaned = cmd.apdu.replace(/\s+/g, '');
-        if (!/^[0-9a-fA-F]*$/.test(cleaned) || cleaned.length % 2 !== 0) {
-          throw new Error('Invalid APDU hex format');
-        }
+        const bytes = parseApduHex(cmd.apdu);
 
-        const bytes = new Uint8Array(cleaned.length / 2);
-        for (let j = 0; j < cleaned.length; j += 2) {
-          bytes[j / 2] = parseInt(cleaned.slice(j, j + 2), 16);
-        }
-
-        const command = CommandApdu.fromUint8Array(bytes);
+        const commandBytes = Uint8Array.from(bytes as unknown as Uint8Array);
+        const command = CommandApdu.fromUint8Array(commandBytes as any);
 
         if (verbose) {
           console.info(chalk.gray(`[verbose] [${i + 1}/${commands.length}] Sending: ${cmd.apdu}`));

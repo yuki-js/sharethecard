@@ -41,3 +41,9 @@ export function generateRandomBase64(bytes: number): string {
   webcrypto.getRandomValues(buffer);
   return Buffer.from(buffer).toString('base64');
 }
+
+/**
+ * Re-exports: canonical JSON and hex utilities
+ */
+export * from './canonical-json.js';
+export * from './hex.js';

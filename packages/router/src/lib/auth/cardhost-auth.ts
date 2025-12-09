@@ -6,7 +6,7 @@
  */
 
 import { webcrypto } from 'node:crypto';
-import { generateRandomBase64 } from '@remote-apdu/shared';
+import { generateRandomBase64, canonicalizeJson } from '@remote-apdu/shared';
 import type { CardhostInfo } from '@remote-apdu/shared';
 
 export interface CardhostRegistry {
@@ -130,7 +130,7 @@ export class CardhostAuth {
       );
 
       // Canonical payload (same as Cardhost's signing)
-      const payload = this.canonicalizeJson(challenge);
+      const payload = canonicalizeJson(challenge);
 
       // Verify signature
       const signature = Buffer.from(signatureBase64, 'base64');
@@ -141,35 +141,11 @@ export class CardhostAuth {
         payload
       );
     } catch (error) {
-      console.error('Signature verification error:', error);
+      // Signature verification failed; suppress logging in library code
       return false;
     }
   }
 
-  /**
-   * Canonicalize JSON for consistent verification
-   */
-  private canonicalizeJson(input: unknown): Uint8Array {
-    const canonical = JSON.stringify(this.sortKeys(input));
-    return new Uint8Array(Buffer.from(canonical, 'utf8'));
-  }
-
-  private sortKeys(value: unknown): unknown {
-    if (Array.isArray(value)) {
-      return value.map(v => this.sortKeys(v));
-    }
-    if (value && typeof value === 'object') {
-      const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-        a.localeCompare(b)
-      );
-      const obj: Record<string, unknown> = {};
-      for (const [k, v] of entries) {
-        obj[k] = this.sortKeys(v);
-      }
-      return obj;
-    }
-    return value;
-  }
 
   /**
    * Check if Cardhost is connected

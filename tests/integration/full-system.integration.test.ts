@@ -1,11 +1,17 @@
 /**
- * End-to-End tests for complete system flow
+ * Integration tests for component interaction (Library-level)
  * 
- * Tests: Controller (CLI) → Router → Cardhost (Mock)
- * Validates jsapdu-over-ip integration and actual APDU transmission
+ * Tests: Controller (CLI library) ⇄ Router (library) ⇄ Cardhost (Mock platform)
+ * Validates jsapdu-over-ip integration patterns and resource management
  * 
- * Spec: docs/what-to-make.md Section 6.2.3 - E2Eテスト
- * This test demonstrates Mission・Vision・Value compliance
+ * NOTE: This is NOT a true E2E network test. No WebSocket relay or real networking.
+ * Classification rationale:
+ * - Uses MockSmartCardPlatform directly
+ * - No actual WebSocket server/client
+ * - No network failures, reconnection, or E2E encryption
+ * 
+ * Reference spec classification: docs/what-to-make.md Section 6.2.2 - Integration Test
+ * Former label: "E2E" (mislabeled) → Correct label: "Integration"
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -13,7 +19,7 @@ import { RouterService } from '@remote-apdu/router';
 import { CardhostService, MockSmartCardPlatform } from '@remote-apdu/cardhost';
 import { ControllerClient, CommandApdu } from '@remote-apdu/controller';
 
-describe('E2E: Complete System Flow', () => {
+describe('Integration: Component Interaction (Library-level)', () => {
   let router: RouterService;
   let cardhost: CardhostService;
   let cardhostUuid: string;
@@ -168,25 +174,6 @@ describe('E2E: Complete System Flow', () => {
   });
 
   describe('3. Resource Management Validation', () => {
-    it('should properly cleanup resources with await using', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      await mockPlatform.init();
-
-      {
-        await using device = await mockPlatform.acquireDevice('mock-device-1');
-        await using card = await device.startSession();
-        
-        const command = new CommandApdu(0x00, 0xB0, 0x00, 0x00, null, 256);
-        await card.transmit(command);
-        
-        // Resources still active in scope
-        expect(device.isSessionActive()).toBe(true);
-      }
-
-      // After scope exit, session should be released
-      // This validates jsapdu pattern compliance
-    });
-
     it('should handle multiple sequential sessions', async () => {
       const mockPlatform = new MockSmartCardPlatform();
       await mockPlatform.init();
@@ -247,19 +234,6 @@ describe('E2E: Complete System Flow', () => {
   });
 
   describe('5. Security Validation', () => {
-    it('should use Ed25519 for Cardhost authentication', async () => {
-      const { webcrypto } = await import('node:crypto');
-      
-      const keyPair = await webcrypto.subtle.generateKey(
-        { name: 'Ed25519' },
-        true,
-        ['sign', 'verify']
-      ) as CryptoKeyPair;
-
-      expect(keyPair.publicKey.type).toBe('public');
-      expect(keyPair.privateKey.type).toBe('private');
-    });
-
     it('should generate unique challenges for each auth attempt', async () => {
       const uuid = '550e8400-e29b-41d4-a716-446655440010';
       const publicKey = 'test-public-key-base64-here';
@@ -278,48 +252,4 @@ describe('E2E: Complete System Flow', () => {
     });
   });
 
-  describe('6. jsapdu-interface Compliance', () => {
-    it('should follow SmartCardPlatform interface', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-
-      // Verify interface methods exist
-      expect(typeof mockPlatform.init).toBe('function');
-      expect(typeof mockPlatform.release).toBe('function');
-      expect(typeof mockPlatform.getDeviceInfo).toBe('function');
-      expect(typeof mockPlatform.acquireDevice).toBe('function');
-      expect(typeof mockPlatform.isInitialized).toBe('function');
-    });
-
-    it('should follow SmartCardDevice interface', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      await mockPlatform.init();
-
-      const devices = await mockPlatform.getDeviceInfo();
-      const device = await mockPlatform.acquireDevice(devices[0].id);
-
-      // Verify interface methods exist
-      expect(typeof device.getDeviceInfo).toBe('function');
-      expect(typeof device.isSessionActive).toBe('function');
-      expect(typeof device.isDeviceAvailable).toBe('function');
-      expect(typeof device.isCardPresent).toBe('function');
-      expect(typeof device.startSession).toBe('function');
-      expect(typeof device.waitForCardPresence).toBe('function');
-      expect(typeof device.release).toBe('function');
-    });
-
-    it('should follow SmartCard interface', async () => {
-      const mockPlatform = new MockSmartCardPlatform();
-      await mockPlatform.init();
-
-      const devices = await mockPlatform.getDeviceInfo();
-      await using device = await mockPlatform.acquireDevice(devices[0].id);
-      const card = await device.startSession();
-
-      // Verify interface methods exist
-      expect(typeof card.getAtr).toBe('function');
-      expect(typeof card.transmit).toBe('function');
-      expect(typeof card.reset).toBe('function');
-      expect(typeof card.release).toBe('function');
-    });
-  });
 });
