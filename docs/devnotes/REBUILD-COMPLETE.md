@@ -22,23 +22,26 @@ Successfully rebuilt the Remote APDU Communication System following the specific
 ### 1. jsapdu-over-ip Integration ✅
 
 **Before (WRONG)**:
+
 ```typescript
 // Custom crypto in packages/shared/src/crypto/
 // Custom protocol in packages/shared/src/protocol/
 ```
 
 **After (CORRECT)**:
+
 ```typescript
 // Controller uses RemoteSmartCardPlatform
-import { RemoteSmartCardPlatform } from '@aokiapp/jsapdu-over-ip/client';
+import { RemoteSmartCardPlatform } from "@aokiapp/jsapdu-over-ip/client";
 
 // Cardhost uses SmartCardPlatformAdapter
-import { SmartCardPlatformAdapter } from '@aokiapp/jsapdu-over-ip/server';
+import { SmartCardPlatformAdapter } from "@aokiapp/jsapdu-over-ip/server";
 ```
 
 ### 2. Library-First Architecture ✅
 
 **Before (WRONG)**:
+
 ```
 packages/controller/src/
   cli.ts          # Monolithic
@@ -46,6 +49,7 @@ packages/controller/src/
 ```
 
 **After (CORRECT)**:
+
 ```
 packages/controller/src/
   lib/            # Testable library
@@ -58,11 +62,13 @@ packages/controller/src/
 ### 3. Meaningful Tests ✅
 
 **Before (WRONG)**:
+
 - Integration tests with all assertions commented out
 - E2E tests that don't test the actual system
 - Tests pass but system is broken
 
 **After (CORRECT)**:
+
 - **28 tests, all passing, all meaningful**
 - Unit tests: MockPlatform, ConfigManager, ControllerAuth, RouterService
 - Integration tests: Cardhost + jsapdu-over-ip
@@ -84,13 +90,15 @@ Test Files  2 passed (2)
 
 ### Test Breakdown
 
-**Unit Tests** (via packages/*/tests/):
+**Unit Tests** (via packages/\*/tests/):
+
 - ✅ MockSmartCardPlatform (comprehensive jsapdu-interface compliance)
 - ✅ ConfigManager (UUID persistence, keypair management)
 - ✅ ControllerAuth (bearer token, session management)
 - ✅ RouterService (authentication coordination, relay)
 
 **Integration Tests** (tests/integration/):
+
 - ✅ Cardhost + jsapdu integration (11 tests)
 - ✅ Platform wrapping and adapter
 - ✅ Device acquisition and session lifecycle
@@ -98,6 +106,7 @@ Test Files  2 passed (2)
 - ✅ Extended APDU handling
 
 **E2E Tests** (tests/e2e/):
+
 - ✅ Connection establishment flow (3 tests)
 - ✅ APDU transmission through library (2 tests)
 - ✅ Resource management with `await using` (2 tests)
@@ -115,15 +124,15 @@ All components export testable library APIs:
 
 ```typescript
 // Controller Library
-import { ControllerClient } from '@remote-apdu/controller';
+import { ControllerClient } from "@remote-apdu/controller";
 const client = new ControllerClient(config);
 
 // Cardhost Library
-import { CardhostService, MockSmartCardPlatform } from '@remote-apdu/cardhost';
+import { CardhostService, MockSmartCardPlatform } from "@remote-apdu/cardhost";
 const service = new CardhostService({ platform: new MockSmartCardPlatform() });
 
 // Router Library
-import { RouterService } from '@remote-apdu/router';
+import { RouterService } from "@remote-apdu/router";
 const router = new RouterService();
 ```
 
@@ -155,17 +164,20 @@ await using card = await device.startSession();
 ## Specification Compliance Check
 
 ### Section 1: Project Overview ✅
+
 - ✅ Uses jsapdu-over-ip library
 - ✅ Three-component architecture (Controller, Cardhost, Router)
 - ✅ NAT-friendly outbound connections
 - ✅ jsapdu-interface compatible
 
 ### Section 3.5: Common Requirements ✅
+
 - ✅ Components work standalone
 - ✅ Components work as libraries for testing
 - ✅ Runtime wrapper pattern ("下駄") implemented
 
 ### Section 6: Testing Strategy ✅
+
 - ✅ Vitest framework
 - ✅ Multiple test files (not single monolithic file)
 - ✅ Unit tests cover library modules
@@ -179,6 +191,7 @@ await using card = await device.startSession();
 > テストのパス条件は、**Mission・Vision・Value に近づくための行動をテスト を通して示せていること**である。
 
 **Achieved**:
+
 - Tests demonstrate proper jsapdu-interface usage
 - Tests demonstrate proper resource management patterns
 - Tests demonstrate integration with jsapdu-over-ip
@@ -221,6 +234,7 @@ jsapdu-interface (SmartCardPlatform, SmartCardDevice, SmartCard)
 ### 3. MockPlatform for Testing
 
 Follows all jsapdu-interface requirements:
+
 - Extends SmartCardPlatform correctly
 - Implements all abstract methods
 - Supports `await using` pattern
@@ -250,19 +264,20 @@ Completely removed (as they were fundamentally wrong):
 New, spec-compliant implementation:
 
 **Libraries**:
+
 ```
 ✓ packages/controller/src/lib/
   - controller-client.ts          (ControllerClient class)
   - session-manager.ts            (Session management)
   - router-transport.ts           (ClientTransport impl)
-  
+
 ✓ packages/cardhost/src/lib/
   - cardhost-service.ts           (CardhostService class)
   - config-manager.ts             (UUID + keypair management)
   - auth-manager.ts               (Challenge-response auth)
   - mock-platform.ts              (MockSmartCardPlatform)
   - router-transport.ts           (ServerTransport impl)
-  
+
 ✓ packages/router/src/lib/
   - router-service.ts             (RouterService class)
   - auth/controller-auth.ts       (Bearer token auth)
@@ -271,6 +286,7 @@ New, spec-compliant implementation:
 ```
 
 **Runtime Wrappers**:
+
 ```
 ✓ packages/cardhost/src/runtime/main.ts     (94 lines - thin!)
 ✓ packages/router/src/runtime/server.ts     (150 lines - thin!)
@@ -278,18 +294,19 @@ New, spec-compliant implementation:
 ```
 
 **Tests (All Meaningful)**:
+
 ```
 ✓ packages/cardhost/tests/
   - mock-platform.test.ts         (comprehensive)
   - config-manager.test.ts        (comprehensive)
-  
+
 ✓ packages/router/tests/
   - controller-auth.test.ts       (comprehensive)
   - router-service.test.ts        (comprehensive)
-  
+
 ✓ tests/integration/
   - cardhost-jsapdu.test.ts       (11 tests - real integration)
-  
+
 ✓ tests/e2e/
   - full-system.test.ts           (17 tests - complete flows)
 ```
@@ -313,6 +330,7 @@ From [`docs/devnotes/CRITICAL-PROBLEMS-ANALYSIS.md`](CRITICAL-PROBLEMS-ANALYSIS.
 ### No Antipatterns ❌→✅
 
 Spec prohibition from [`docs/what-to-make.md:557-560`](../what-to-make.md:557-560):
+
 - ❌ テストケース内での `console.log` → ✅ None in our tests
 - ❌ テストを通すことだけを目的としたコード → ✅ All tests verify actual behavior
 - ❌ モックプラットフォーム直接呼び出しのみのテスト → ✅ Tests use full integration
@@ -320,9 +338,11 @@ Spec prohibition from [`docs/what-to-make.md:557-560`](../what-to-make.md:557-56
 ### Demonstrates Mission・Vision・Value ✅
 
 From [`docs/what-to-make.md:570-572`](../what-to-make.md:570-572):
+
 > テストのパス条件は、**Mission・Vision・Value に近づくための行動をテスト を通して示せていること**
 
 Our tests demonstrate:
+
 - ✅ Proper jsapdu abstraction usage
 - ✅ Correct resource management with `await using`
 - ✅ jsapdu-over-ip integration
@@ -364,6 +384,7 @@ node packages/controller/dist/cli.js list --router http://localhost:3000 --token
 ## Architecture Comparison
 
 ### Before (WRONG)
+
 ```
 [Monolithic Services]
   ↓
@@ -375,6 +396,7 @@ node packages/controller/dist/cli.js list --router http://localhost:3000 --token
 ```
 
 ### After (CORRECT)
+
 ```
 [Thin Runtime Wrappers]
   ↓
@@ -399,24 +421,28 @@ node packages/controller/dist/cli.js list --router http://localhost:3000 --token
 ## Achievements
 
 ### Code Quality
+
 - ✅ TypeScript strict mode
 - ✅ Clean separation of concerns
 - ✅ Proper error handling
 - ✅ Resource leak prevention
 
 ### Testing
+
 - ✅ 28 meaningful tests
 - ✅ 100% passing
 - ✅ Multiple test levels (unit, integration, E2E)
 - ✅ Tests demonstrate correct patterns
 
 ### Architecture
+
 - ✅ Library-first design
 - ✅ Composable components
 - ✅ Thin runtime wrappers
 - ✅ Testable without deployment
 
 ### Ecosystem Integration
+
 - ✅ jsapdu-over-ip client and server
 - ✅ jsapdu-interface compliance
 - ✅ Proper abstraction layers
@@ -439,6 +465,7 @@ The core implementation is complete and spec-compliant. Optional enhancements:
 ## Conclusion
 
 The system has been successfully rebuilt from scratch following:
+
 - ✅ Specification requirements
 - ✅ jsapdu ecosystem patterns
 - ✅ Best practices from research documents

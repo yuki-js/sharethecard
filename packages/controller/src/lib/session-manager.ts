@@ -1,12 +1,12 @@
 /**
  * Session Manager for Controller
  * Handles authentication with Router and session token management
- * 
+ *
  * Spec: docs/what-to-make.md Section 4.2.1 - 認証フロー
  */
 
-import { fetch } from 'undici';
-import type { SessionToken, CardhostInfo } from '@remote-apdu/shared';
+import { fetch } from "undici";
+import type { SessionToken, CardhostInfo } from "@remote-apdu/shared";
 
 export interface SessionManagerConfig {
   routerUrl: string;
@@ -32,20 +32,23 @@ export class SessionManager {
       return this.sessionToken;
     }
 
-    const response = await fetch(`${this.config.routerUrl}/controller/connect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.token}`
-      }
-    });
+    const response = await fetch(
+      `${this.config.routerUrl}/controller/connect`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.config.token}`,
+        },
+      },
+    );
 
     if (!response.ok) {
       const error = await response.text();
       throw new Error(`Authentication failed: ${response.status} - ${error}`);
     }
 
-    const data = await response.json() as SessionToken;
+    const data = (await response.json()) as SessionToken;
     this.sessionToken = data.token;
     this.expiresAt = new Date(data.expiresAt);
 
@@ -58,16 +61,18 @@ export class SessionManager {
   async listCardhosts(): Promise<CardhostInfo[]> {
     const response = await fetch(`${this.config.routerUrl}/cardhosts`, {
       headers: {
-        'Authorization': `Bearer ${this.config.token}`
-      }
+        Authorization: `Bearer ${this.config.token}`,
+      },
     });
 
     if (!response.ok) {
       const error = await response.text();
-      throw new Error(`Failed to list cardhosts: ${response.status} - ${error}`);
+      throw new Error(
+        `Failed to list cardhosts: ${response.status} - ${error}`,
+      );
     }
 
-    return await response.json() as CardhostInfo[];
+    return (await response.json()) as CardhostInfo[];
   }
 
   /**
@@ -78,12 +83,12 @@ export class SessionManager {
     const sessionToken = await this.authenticate();
 
     const response = await fetch(`${this.config.routerUrl}/sessions`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'x-session-token': sessionToken
+        "Content-Type": "application/json",
+        "x-session-token": sessionToken,
       },
-      body: JSON.stringify({ cardhostUuid })
+      body: JSON.stringify({ cardhostUuid }),
     });
 
     if (!response.ok) {
@@ -91,7 +96,7 @@ export class SessionManager {
       throw new Error(`Session creation failed: ${response.status} - ${error}`);
     }
 
-    const { relayId } = await response.json() as { relayId: string };
+    const { relayId } = (await response.json()) as { relayId: string };
     return relayId;
   }
 
@@ -106,9 +111,11 @@ export class SessionManager {
    * Check if session is valid
    */
   isSessionValid(): boolean {
-    return this.sessionToken !== null && 
-           this.expiresAt !== null && 
-           this.expiresAt > new Date();
+    return (
+      this.sessionToken !== null &&
+      this.expiresAt !== null &&
+      this.expiresAt > new Date()
+    );
   }
 
   /**

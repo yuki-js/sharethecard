@@ -45,12 +45,14 @@ cat src/transport.ts                            # Transport abstraction
 ```
 
 **Why This Matters**:
+
 - jsapdu-over-ip provides **RPC**, NOT encryption
 - Understanding the abstraction layers prevents mistakes
 - Resource management patterns (`await using`) are non-obvious
 - Error handling across 6 layers requires study
 
 **Consequence of Skipping**:
+
 - Code corruption (incompatible implementations)
 - Memory leaks (unclosed handles)
 - Protocol violations (silent failures)
@@ -63,6 +65,7 @@ cat src/transport.ts                            # Transport abstraction
 このセクションは「なぜ」を解消するための機序（メカニズム）に立脚したガードレールを定義します。AIエージェント/人間開発者いずれにも有効です。
 
 ### 行動の傾向（悪いパターン）と「なぜなぜ」分析
+
 - 近視眼的最適化（Quick Wins 先行）
   - なぜ？: 成果の即時可視化（グリーンテスト）を優先しがち
     - なぜ？: 読解の成功指標が曖昧で、短期の評価軸に乗りづらい
@@ -81,6 +84,7 @@ cat src/transport.ts                            # Transport abstraction
     - なぜ？: WebSocketリレーとE2E暗号のテスト設計が未整備
 
 ### 対策（実行ガードレール）
+
 - Gate A: 読解ゲート（Step 0 完了の証跡なしに実装禁止）
   - docs/devnotes/STEP0-SUMMARY.md を作成（PRに含める）
     - 読了ファイル一覧（箇条書）
@@ -111,15 +115,18 @@ cat src/transport.ts                            # Transport abstraction
 ## 📦 Documents to Review (After Cloning - Priority Order)
 
 ### 1. [`research-jsapdu-joip.md`](research-jsapdu-joip.md) ⭐⭐⭐
+
 **Read Second** - Technical Foundation
 
 **Why Read**:
+
 - Understand jsapdu architecture (6 abstraction layers)
 - Understand jsapdu-over-ip purpose (RPC, NOT encryption)
 - Learn correct patterns (`await using`, resource management)
 - See real failure scenarios from developers who didn't read docs
 
-**Key Takeaway**: 
+**Key Takeaway**:
+
 > jsapdu-over-ip provides **transport-agnostic RPC** for SmartCardPlatform interface.
 > It does NOT provide E2E encryption. That must be implemented separately.
 
@@ -128,9 +135,11 @@ cat src/transport.ts                            # Transport abstraction
 ---
 
 ### 2. [`REQUIREMENTS-COMPLIANCE-ANALYSIS.md`](REQUIREMENTS-COMPLIANCE-ANALYSIS.md) ⭐⭐⭐
+
 **Read Second** - What's Missing
 
 **Why Read**:
+
 - Comprehensive spec verification (674 lines checked)
 - Compliance score: 63% (C+)
 - **3 Critical Findings** that change everything
@@ -139,6 +148,7 @@ cat src/transport.ts                            # Transport abstraction
 **Critical Findings**:
 
 **Finding 1: E2E Encryption Misunderstanding** 🚨
+
 ```
 We assumed: jsapdu-over-ip provides E2E encryption
 Reality: jsapdu-over-ip only provides RPC serialization
@@ -147,6 +157,7 @@ Status: NOT IMPLEMENTED
 ```
 
 **Finding 2: WebSocket Protocol Incomplete** 🚨
+
 ```
 Issue: Router has no /api/jsapdu/ws WebSocket handler
 Impact: Cardhost cannot connect, APDU cannot flow
@@ -154,9 +165,10 @@ Status: PLACEHOLDER CODE ONLY
 ```
 
 **Finding 3: Many Missing Features** ⚠️
+
 ```
 - Auto-reconnection
-- Heartbeat mechanism  
+- Heartbeat mechanism
 - Card event detection
 - Monitor UI
 - Rate limiting
@@ -165,6 +177,7 @@ Status: PLACEHOLDER CODE ONLY
 ```
 
 **Compliance Breakdown**:
+
 - Must-Have (10 items): 6/10 = 60% ❌
 - Should-Have (10 items): 0/10 = 0% ❌
 - Protocol Section: 40% ❌
@@ -175,9 +188,11 @@ Status: PLACEHOLDER CODE ONLY
 ---
 
 ### 3. [`CODE-QUALITY-REVIEW-COMPLETE.md`](CODE-QUALITY-REVIEW-COMPLETE.md) ⭐⭐
+
 **Read Third** - Implementation Details
 
 **Why Read**:
+
 - Code quality score: B+ (87/100) - Good but not perfect
 - Specific issues with file:line references
 - 133 lines of code duplication identified
@@ -187,15 +202,18 @@ Status: PLACEHOLDER CODE ONLY
 **Key Issues**:
 
 **Code Duplication** (133 lines):
+
 1. `canonicalizeJson` function (88 lines, 2 files)
 2. Hex parsing logic (45 lines, 3 files)
 
 **Missing Tests** (22 tests needed):
+
 1. SessionManager (Controller) - 8 tests
-2. AuthManager (Cardhost) - 8 tests  
+2. AuthManager (Cardhost) - 8 tests
 3. Transport layers - 6 tests
 
 **Minor Issues**:
+
 - Private property access via bracket notation
 - console.error in library code
 - Magic numbers not extracted
@@ -205,14 +223,17 @@ Status: PLACEHOLDER CODE ONLY
 ---
 
 ### 4. [`docs/what-to-make.md`](../what-to-make.md) 📖
+
 **Reference** - Original Specification
 
 **Why Include**:
+
 - 674-line complete specification
 - Use as reference when implementing fixes
 - REQUIREMENTS-COMPLIANCE-ANALYSIS cites specific sections
 
-**Don't Read Sequentially**: 
+**Don't Read Sequentially**:
+
 - Use as lookup when REQUIREMENTS-COMPLIANCE-ANALYSIS mentions sections
 - Example: "See Section 4.3 for E2E encryption requirements"
 
@@ -225,6 +246,7 @@ Status: PLACEHOLDER CODE ONLY
 ### Phase 1: Critical Fixes (P0)
 
 **Priority 0-1: Implement E2E Encryption** (40-60 hours)
+
 - Location: New layer wrapping jsapdu-over-ip
 - Requirements: Section 4.3, 5.1 of spec
 - Components: ECDH key exchange, AES-GCM encryption, Ed25519 message signatures
@@ -234,6 +256,7 @@ Status: PLACEHOLDER CODE ONLY
   - `packages/cardhost/src/lib/e2e-wrapper.ts`
 
 **Priority 0-2: Implement WebSocket RPC Relay** (20-30 hours)
+
 - Location: `packages/router/src/runtime/websocket-handler.ts`
 - Requirements: Section 4.1.2, 4.2.2 of spec
 - Components: WebSocket upgrade, RPC message routing, connection pool
@@ -242,12 +265,14 @@ Status: PLACEHOLDER CODE ONLY
 ### Phase 2: Quality Improvements (P1-P2)
 
 **Priority 1: Add Missing Tests** (15-20 hours)
+
 - SessionManager: 8 tests
 - AuthManager: 8 tests
 - Transports: 6 tests
 - Target coverage: 80%
 
 **Priority 2: Refactor Duplicated Code** (5-10 hours)
+
 - Extract `canonicalizeJson` to shared
 - Extract hex parsing to utility
 - Create HTTP client wrapper
@@ -255,6 +280,7 @@ Status: PLACEHOLDER CODE ONLY
 ### Phase 3: Feature Completion (P3)
 
 **Nice-to-have features** (40+ hours):
+
 - Auto-reconnection
 - Heartbeat with signatures
 - Card event detection
@@ -270,6 +296,7 @@ Status: PLACEHOLDER CODE ONLY
 ## 📊 Current State Summary
 
 ### What Works ✅
+
 - ✅ Library-first architecture (correct)
 - ✅ jsapdu-over-ip RPC integration (correct)
 - ✅ MockSmartCardPlatform (excellent implementation)
@@ -279,12 +306,14 @@ Status: PLACEHOLDER CODE ONLY
 - ✅ Clean separation lib/runtime
 
 ### What Doesn't Work ❌
+
 - ❌ E2E encryption (spec Section 4.3 - NOT implemented)
 - ❌ WebSocket RPC relay (Cardhost cannot actually connect)
 - ❌ Message signatures on APDU (spec Section 5.3 - NOT implemented)
 - ❌ Full end-to-end APDU flow (no real networking test)
 
 ### Test Results
+
 ```bash
 $ npm test
 ✓ 28/28 tests passed
@@ -293,6 +322,7 @@ $ npm test
 **But**: Tests use library APIs directly, not full network stack
 
 ### Build Status
+
 ```bash
 $ npm run build
 ✓ All packages compile
@@ -304,25 +334,29 @@ $ npm run build
 ## 🔑 Key Insights for Next Developer
 
 ### Insight 1: jsapdu-over-ip Role
+
 **What it does**: RPC serialization for SmartCardPlatform interface  
 **What it doesn't do**: E2E encryption, message authentication  
 **Implication**: Must add encryption layer AROUND jsapdu-over-ip
 
 ### Insight 2: Architecture is Correct
+
 - Library-first design: ✅ Correct
-- Separation of concerns: ✅ Correct  
+- Separation of concerns: ✅ Correct
 - Resource management: ✅ Correct
 - **Don't redesign**: Build on this foundation
 
 ### Insight 3: Tests Are Meaningful But Incomplete
+
 - Current tests: ✅ Good quality, educational
 - Coverage: ⚠️ 60% (need 80%)
 - Network tests: ❌ Missing (mocked out)
 - **Don't rewrite tests**: Add missing ones
 
 ### Insight 4: Quick Wins Available
+
 - Refactor duplicated code: 2-3 hours
-- Add basic tests: 5-10 hours  
+- Add basic tests: 5-10 hours
 - Extract constants: 1 hour
 - **Low-hanging fruit**: Do these first
 
@@ -331,24 +365,24 @@ $ npm run build
 ## 📋 Reading Order Recommendation
 
 ### Day 1: Understanding (Total: ~1 hour)
+
 1. Read [`research-jsapdu-joip.md`](research-jsapdu-joip.md) - 15 min
    - **Focus**: jsapdu-over-ip capabilities and limitations
-   
 2. Read [`REQUIREMENTS-COMPLIANCE-ANALYSIS.md`](REQUIREMENTS-COMPLIANCE-ANALYSIS.md) - 30 min
    - **Focus**: Section "Critical Findings" and compliance matrix
-   
 3. Skim [`CODE-QUALITY-REVIEW-COMPLETE.md`](CODE-QUALITY-REVIEW-COMPLETE.md) - 15 min
    - **Focus**: Priority 1-2 issues
 
 ### Day 2: Implementation Planning
+
 4. Deep read [`REQUIREMENTS-COMPLIANCE-ANALYSIS.md`](REQUIREMENTS-COMPLIANCE-ANALYSIS.md)
    - Note all P0 and P1 items
-   
 5. Reference [`docs/what-to-make.md`](../what-to-make.md)
    - Sections 4.3 (E2E encryption)
    - Sections 5.1-5.3 (Security design)
 
 ### Day 3: Start Coding
+
 6. Review existing code with quality document in hand
 7. Start with Priority 0-1 (E2E encryption)
 
@@ -357,18 +391,21 @@ $ npm run build
 ## 🎓 Success Criteria for Next Phase
 
 ### Minimum (80% compliance)
+
 - [ ] E2E encryption implemented (ECDH + AES-GCM)
 - [ ] WebSocket RPC relay functional
 - [ ] Full network E2E test passing
 - [ ] Test coverage ≥ 80%
 
 ### Target (90% compliance)
+
 - [ ] Above + Message signatures on APDU
 - [ ] Above + Auto-reconnection
 - [ ] Above + Heartbeat mechanism
 - [ ] Above + Rate limiting
 
 ### Ideal (95% compliance)
+
 - [ ] Above + All should-have features
 - [ ] Above + Monitor UI
 - [ ] Above + TLS enforcement
@@ -390,6 +427,7 @@ If questions arise during implementation:
 ## ✅ Checklist Before Starting (CRITICAL ORDER)
 
 ### Phase 0: Repository Study (MANDATORY - 1-2 hours)
+
 - [ ] **Verify research/jsapdu/ exists**: `cd research/jsapdu && git pull`
 - [ ] **Verify research/jsapdu-over-ip/ exists**: `cd research/jsapdu-over-ip && ls`
 - [ ] **Read jsapdu docs recursively**: Start with `docs/README.md`, follow ALL links
@@ -408,24 +446,28 @@ If questions arise during implementation:
   - No summary/design notes yet / Cannot explain RPC–crypto boundary / Tests only at library level
 
 ### Phase 1: Context Documents (45-60 minutes)
+
 - [ ] Read `research-jsapdu-joip.md` summary
 - [ ] Read `REQUIREMENTS-COMPLIANCE-ANALYSIS.md` thoroughly
 - [ ] Read `CODE-QUALITY-REVIEW-COMPLETE.md` thoroughly
 - [ ] Have `docs/what-to-make.md` open for reference
 
 ### Phase 2: Understanding Critical Issues (15 minutes)
+
 - [ ] Understand Finding 1: E2E encryption missing (jsapdu-over-ip doesn't provide it)
 - [ ] Understand Finding 2: WebSocket RPC relay is placeholder only
 - [ ] Understand Finding 3: Many features unimplemented (10+)
 - [ ] Note: Tests pass (28/28) but system incomplete
 
 ### Phase 3: Code Review (30 minutes)
+
 - [ ] Review existing code structure (lib/ vs runtime/)
 - [ ] Identify code duplication (133 lines noted)
 - [ ] Identify missing tests (22 tests noted)
 - [ ] Understand: Don't redesign, build on foundation
 
 ### Phase 4: Ready to Start
+
 - [ ] Development environment set up
 - [ ] P0 tasks identified (E2E encryption + WebSocket)
 - [ ] Ready to implement fixes
@@ -448,6 +490,7 @@ docs/what-to-make.md
 ```
 
 Optional reference:
+
 ```
 docs/devnotes/PROPER-ARCHITECTURE-DESIGN.md
 docs/devnotes/CRITICAL-PROBLEMS-ANALYSIS.md
@@ -461,6 +504,7 @@ docs/devnotes/REBUILD-COMPLETE.md
 ### 未実施事項（現状／理由／次の一手）
 
 1. E2E 暗号レイヤ（ECDH→HKDF→AES-GCM + Ed25519）
+
 ```
 Status: NOT IMPLEMENTED
 Scope: P0 Security Layer
@@ -471,6 +515,7 @@ Contracts: [TypeScript.ClientTransport](research/jsapdu-over-ip/src/transport.ts
 ```
 
 2. APDU メッセージ署名（spec 5.3）
+
 ```
 Status: NOT IMPLEMENTED
 Scope: P0 Security Layer（E2E と一体）
@@ -479,6 +524,7 @@ Next: E2E ラッパ導入と同時適用。契約は [docs/what-to-make.md](docs
 ```
 
 3. Router ランタイム test-server ヘルパ抽出
+
 ```
 Status: PENDING
 Scope: Refactor
@@ -487,6 +533,7 @@ Next: [packages/router/src/runtime/test-server.ts](packages/router/src/runtime/t
 ```
 
 4. テスト内 URL ハードコード撤去（http://localhost:3000）
+
 ```
 Status: PARTIAL
 Files:
@@ -498,6 +545,7 @@ Next: BASE_URL／設定注入に統一してハードコードを撤去。
 ```
 
 5. Nice-to-have 群（Auto-reconnection／Heartbeat（署名付）／Rate limiting／TLS／Monitor UI 等）
+
 ```
 Status: NOT IMPLEMENTED
 Scope: P3 Feature Completion
@@ -508,6 +556,7 @@ Next: 暗号レイヤ完了後に順次着手。
 ---
 
 ### このフェーズで達成したこと（目的適合）
+
 - 実ネットワーク E2E（HTTP+WS, 単一プロセス）成立・安定化
   - ランタイム制御: [TypeScript.startRuntimeServer()](packages/router/src/runtime/server.ts:193), [TypeScript.main()](packages/router/src/runtime/server.ts:319)
 - 初期化競合の解消（クライアント／サーバ）
@@ -518,6 +567,7 @@ Next: 暗号レイヤ完了後に順次着手。
   - [TypeScript.RemoteSmartCardPlatform](research/jsapdu-over-ip/src/client/platform-proxy.ts:93)
 
 ### 結論
+
 - 目的（理解の証跡化／ネットワーク動作の安定化／品質改善）は達成。
 - 次フェーズ開始条件は「暗号レイヤ（P0）着手」。
 - 「RPC と暗号は分離（Router は暗号文の透過中継）」の原則を維持したまま進める。

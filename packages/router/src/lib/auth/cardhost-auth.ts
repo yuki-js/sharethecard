@@ -1,13 +1,13 @@
 /**
  * Cardhost Authentication Manager for Router
  * Handles public key challenge-response authentication
- * 
+ *
  * Spec: docs/what-to-make.md Section 4.1.1 - Cardhost認証フロー
  */
 
-import { webcrypto } from 'node:crypto';
-import { generateRandomBase64, canonicalizeJson } from '@remote-apdu/shared';
-import type { CardhostInfo } from '@remote-apdu/shared';
+import { webcrypto } from "node:crypto";
+import { generateRandomBase64, canonicalizeJson } from "@remote-apdu/shared";
+import type { CardhostInfo } from "@remote-apdu/shared";
 
 export interface CardhostRegistry {
   uuid: string;
@@ -31,18 +31,18 @@ export class CardhostAuth {
 
   /**
    * Initiate authentication - register UUID and public key, issue challenge
-   * 
+   *
    * Step 1 of challenge-response auth
    */
   async initiateAuth(uuid: string, publicKey: string): Promise<string> {
     // Register or update Cardhost
     const existing = this.registry.get(uuid);
-    
+
     this.registry.set(uuid, {
       uuid,
       publicKey,
       connected: existing?.connected ?? false,
-      connectedAt: existing?.connectedAt
+      connectedAt: existing?.connectedAt,
     });
 
     // Generate cryptographic challenge
@@ -50,7 +50,7 @@ export class CardhostAuth {
 
     this.challenges.set(uuid, {
       challenge,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     return challenge;
@@ -58,42 +58,42 @@ export class CardhostAuth {
 
   /**
    * Verify authentication - validate Ed25519 signature over challenge
-   * 
+   *
    * Step 2 of challenge-response auth
    */
   async verifyAuth(
     uuid: string,
     challenge: string,
-    signatureBase64: string
+    signatureBase64: string,
   ): Promise<boolean> {
     // Get registered Cardhost
     const cardhost = this.registry.get(uuid);
     if (!cardhost) {
-      throw new Error('Cardhost not registered');
+      throw new Error("Cardhost not registered");
     }
 
     // Get stored challenge
     const stored = this.challenges.get(uuid);
     if (!stored) {
-      throw new Error('No challenge found for this Cardhost');
+      throw new Error("No challenge found for this Cardhost");
     }
 
     // Check challenge timeout
     if (Date.now() - stored.timestamp > this.CHALLENGE_TIMEOUT_MS) {
       this.challenges.delete(uuid);
-      throw new Error('Challenge expired');
+      throw new Error("Challenge expired");
     }
 
     // Verify challenge matches
     if (stored.challenge !== challenge) {
-      throw new Error('Challenge mismatch');
+      throw new Error("Challenge mismatch");
     }
 
     // Verify Ed25519 signature
     const isValid = await this.verifySignature(
       challenge,
       cardhost.publicKey,
-      signatureBase64
+      signatureBase64,
     );
 
     if (!isValid) {
@@ -116,36 +116,35 @@ export class CardhostAuth {
   private async verifySignature(
     challenge: string,
     publicKeyBase64: string,
-    signatureBase64: string
+    signatureBase64: string,
   ): Promise<boolean> {
     try {
       // Import Ed25519 public key
-      const publicKeyDer = Buffer.from(publicKeyBase64, 'base64');
+      const publicKeyDer = Buffer.from(publicKeyBase64, "base64");
       const publicKey = await webcrypto.subtle.importKey(
-        'spki',
+        "spki",
         publicKeyDer,
-        { name: 'Ed25519' },
+        { name: "Ed25519" },
         false,
-        ['verify']
+        ["verify"],
       );
 
       // Canonical payload (same as Cardhost's signing)
       const payload = canonicalizeJson(challenge);
 
       // Verify signature
-      const signature = Buffer.from(signatureBase64, 'base64');
+      const signature = Buffer.from(signatureBase64, "base64");
       return await webcrypto.subtle.verify(
-        { name: 'Ed25519' },
+        { name: "Ed25519" },
         publicKey,
         signature,
-        payload
+        payload,
       );
     } catch (error) {
       // Signature verification failed; suppress logging in library code
       return false;
     }
   }
-
 
   /**
    * Check if Cardhost is connected
@@ -166,9 +165,9 @@ export class CardhostAuth {
    * List all registered Cardhosts
    */
   listCardhosts(): CardhostInfo[] {
-    return Array.from(this.registry.values()).map(ch => ({
+    return Array.from(this.registry.values()).map((ch) => ({
       uuid: ch.uuid,
-      connected: ch.connected
+      connected: ch.connected,
     }));
   }
 

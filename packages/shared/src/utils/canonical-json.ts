@@ -17,7 +17,7 @@
  */
 export function canonicalizeJson(input: unknown): Uint8Array {
   const canonical = JSON.stringify(sortKeys(input));
-  return new Uint8Array(Buffer.from(canonical, 'utf8'));
+  return new Uint8Array(Buffer.from(canonical, "utf8"));
 }
 
 /**
@@ -27,9 +27,9 @@ function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((v) => sortKeys(v));
   }
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) =>
-      a.localeCompare(b)
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(
+      ([a], [b]) => a.localeCompare(b),
     );
     const obj: Record<string, unknown> = {};
     for (const [k, v] of entries) {

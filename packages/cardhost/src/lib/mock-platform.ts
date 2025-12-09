@@ -1,7 +1,7 @@
 /**
  * Mock SmartCard Platform for testing
  * Implements jsapdu-interface abstractions without requiring physical hardware
- * 
+ *
  * Reference: research/jsapdu/packages/interface/src/abstracts.ts
  */
 
@@ -12,8 +12,8 @@ import {
   SmartCardDeviceInfo,
   CommandApdu,
   ResponseApdu,
-  type NfcAntennaInfo
-} from '@aokiapp/jsapdu-interface';
+  type NfcAntennaInfo,
+} from "@aokiapp/jsapdu-interface";
 
 /**
  * Mock device information
@@ -21,20 +21,20 @@ import {
 class MockDeviceInfo extends SmartCardDeviceInfo {
   constructor(
     public readonly id: string,
-    public readonly friendlyName: string = 'Mock Smart Card Reader'
+    public readonly friendlyName: string = "Mock Smart Card Reader",
   ) {
     super();
   }
 
   readonly devicePath = undefined;
-  readonly description = 'Mock device for testing';
+  readonly description = "Mock device for testing";
   readonly supportsApdu = true;
   readonly supportsHce = false;
   readonly isIntegratedDevice = false;
   readonly isRemovableDevice = true;
-  readonly d2cProtocol = 'iso7816' as const;
-  readonly p2dProtocol = 'usb' as const;
-  readonly apduApi = ['mock'];
+  readonly d2cProtocol = "iso7816" as const;
+  readonly p2dProtocol = "usb" as const;
+  readonly apduApi = ["mock"];
   readonly antennaInfo = undefined;
 }
 
@@ -47,7 +47,7 @@ class MockSmartCard extends SmartCard {
 
   constructor(
     parentDevice: SmartCardDevice,
-    private responses: Map<string, Uint8Array> = new Map()
+    private responses: Map<string, Uint8Array> = new Map(),
   ) {
     super(parentDevice);
   }
@@ -55,37 +55,41 @@ class MockSmartCard extends SmartCard {
   async getAtr(): Promise<Uint8Array> {
     this.assertNotReleased();
     // Minimal valid ATR
-    return new Uint8Array([0x3B, 0x00]);
+    return new Uint8Array([0x3b, 0x00]);
   }
 
   async transmit(apdu: CommandApdu): Promise<ResponseApdu>;
   async transmit(apdu: Uint8Array): Promise<Uint8Array>;
-  async transmit(apdu: CommandApdu | Uint8Array): Promise<ResponseApdu | Uint8Array> {
+  async transmit(
+    apdu: CommandApdu | Uint8Array,
+  ): Promise<ResponseApdu | Uint8Array> {
     this.assertNotReleased();
 
     if (apdu instanceof CommandApdu) {
       // Check for predefined response
       const key = apdu.toHexString();
       const response = this.responses.get(key);
-      
+
       if (response) {
         // Ensure proper ArrayBuffer type
         const bytes = new Uint8Array(response);
         return ResponseApdu.fromUint8Array(bytes as Uint8Array<ArrayBuffer>);
       }
-      
+
       // Default: return success (9000)
       const emptyData = new Uint8Array(0);
       return new ResponseApdu(emptyData as Uint8Array<ArrayBuffer>, 0x90, 0x00);
     } else {
       // Raw bytes
-      const key = Array.from(apdu, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      const key = Array.from(apdu, (b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .toUpperCase();
       const response = this.responses.get(key);
-      
+
       if (response) {
         return response;
       }
-      
+
       // Default: return success
       return new Uint8Array([0x90, 0x00]);
     }
@@ -105,7 +109,7 @@ class MockSmartCard extends SmartCard {
 
   private assertNotReleased(): void {
     if (this.released) {
-      throw new Error('Card session already released');
+      throw new Error("Card session already released");
     }
   }
 
@@ -129,7 +133,7 @@ class MockSmartCardDevice extends SmartCardDevice {
   constructor(
     parentPlatform: SmartCardPlatform,
     private deviceInfo: MockDeviceInfo,
-    responses?: Map<string, Uint8Array>
+    responses?: Map<string, Uint8Array>,
   ) {
     super(parentPlatform);
     this.responses = responses ?? new Map();
@@ -154,13 +158,13 @@ class MockSmartCardDevice extends SmartCardDevice {
 
   async startSession(): Promise<SmartCard> {
     this.assertNotReleased();
-    
+
     if (this.cardSession) {
-      throw new Error('Session already active');
+      throw new Error("Session already active");
     }
-    
+
     if (!this.cardPresent) {
-      throw new Error('Card not present');
+      throw new Error("Card not present");
     }
 
     this.cardSession = new MockSmartCard(this, this.responses);
@@ -169,17 +173,17 @@ class MockSmartCardDevice extends SmartCardDevice {
 
   async waitForCardPresence(timeout: number): Promise<void> {
     this.assertNotReleased();
-    
+
     if (this.cardPresent) {
       return;
     }
-    
+
     // Simulate waiting
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error('Timeout waiting for card'));
+        reject(new Error("Timeout waiting for card"));
       }, timeout);
-      
+
       // For mock, immediately resolve if card becomes present
       if (this.cardPresent) {
         clearTimeout(timer);
@@ -189,7 +193,7 @@ class MockSmartCardDevice extends SmartCardDevice {
   }
 
   async startHceSession(): Promise<never> {
-    throw new Error('HCE not supported in mock platform');
+    throw new Error("HCE not supported in mock platform");
   }
 
   async release(): Promise<void> {
@@ -207,7 +211,7 @@ class MockSmartCardDevice extends SmartCardDevice {
 
   private assertNotReleased(): void {
     if (this.released) {
-      throw new Error('Device already released');
+      throw new Error("Device already released");
     }
   }
 
@@ -254,11 +258,11 @@ export class MockSmartCardPlatform extends SmartCardPlatform {
     this.initialized = true;
 
     // Now create default mock device
-    const deviceInfo = new MockDeviceInfo('mock-device-1', 'Mock Reader 1');
+    const deviceInfo = new MockDeviceInfo("mock-device-1", "Mock Reader 1");
     const device = new MockSmartCardDevice(
       this,
       deviceInfo,
-      this.deviceResponses.get(deviceInfo.id)
+      this.deviceResponses.get(deviceInfo.id),
     );
     this.devices.set(deviceInfo.id, device);
   }
@@ -269,8 +273,8 @@ export class MockSmartCardPlatform extends SmartCardPlatform {
     }
 
     // Release all devices
-    const releasePromises = Array.from(this.devices.values()).map(device =>
-      device.release().catch(() => {})
+    const releasePromises = Array.from(this.devices.values()).map((device) =>
+      device.release().catch(() => {}),
     );
     await Promise.allSettled(releasePromises);
 
@@ -280,12 +284,14 @@ export class MockSmartCardPlatform extends SmartCardPlatform {
 
   async getDeviceInfo(): Promise<SmartCardDeviceInfo[]> {
     this.assertInitialized();
-    return Array.from(this.devices.values()).map(device => device.getDeviceInfo());
+    return Array.from(this.devices.values()).map((device) =>
+      device.getDeviceInfo(),
+    );
   }
 
   async acquireDevice(id: string): Promise<SmartCardDevice> {
     this.assertInitialized();
-    
+
     const existingDevice = this.devices.get(id);
     if (!existingDevice) {
       throw new Error(`Device not found: ${id}`);
@@ -299,7 +305,7 @@ export class MockSmartCardPlatform extends SmartCardPlatform {
       const newDevice = new MockSmartCardDevice(
         this,
         deviceInfo as MockDeviceInfo,
-        this.deviceResponses.get(id)
+        this.deviceResponses.get(id),
       );
       this.devices.set(id, newDevice);
       return newDevice;
@@ -313,14 +319,14 @@ export class MockSmartCardPlatform extends SmartCardPlatform {
    */
   addMockDevice(id: string, friendlyName?: string): void {
     if (!this.initialized) {
-      throw new Error('Platform not initialized');
+      throw new Error("Platform not initialized");
     }
 
     const deviceInfo = new MockDeviceInfo(id, friendlyName);
     const device = new MockSmartCardDevice(
       this,
       deviceInfo,
-      this.deviceResponses.get(id)
+      this.deviceResponses.get(id),
     );
     this.devices.set(id, device);
   }
@@ -328,7 +334,11 @@ export class MockSmartCardPlatform extends SmartCardPlatform {
   /**
    * Configure response for specific device and APDU command (for testing)
    */
-  setDeviceResponse(deviceId: string, command: string, response: Uint8Array): void {
+  setDeviceResponse(
+    deviceId: string,
+    command: string,
+    response: Uint8Array,
+  ): void {
     let deviceResponses = this.deviceResponses.get(deviceId);
     if (!deviceResponses) {
       deviceResponses = new Map();

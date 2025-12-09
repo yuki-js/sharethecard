@@ -1,7 +1,7 @@
-import chalk from 'chalk';
-import { createInterface } from 'node:readline';
-import { ControllerClient, CommandApdu } from '../lib/index.js';
-import { parseApduHex } from '@remote-apdu/shared';
+import chalk from "chalk";
+import { createInterface } from "node:readline";
+import { ControllerClient, CommandApdu } from "../lib/index.js";
+import { parseApduHex } from "@remote-apdu/shared";
 
 export type InteractiveCommandArgs = {
   router?: string;
@@ -18,7 +18,9 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
   const { router, cardhost, token, verbose } = argv;
 
   if (!router || !cardhost || !token) {
-    console.error(chalk.red('Missing required options: --router, --cardhost, --token'));
+    console.error(
+      chalk.red("Missing required options: --router, --cardhost, --token"),
+    );
     process.exitCode = 2;
     return;
   }
@@ -27,41 +29,44 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
     routerUrl: router,
     token,
     cardhostUuid: cardhost,
-    verbose
+    verbose,
   });
 
   try {
     if (verbose) {
-      console.info(chalk.gray('[verbose] Connecting...'));
+      console.info(chalk.gray("[verbose] Connecting..."));
     }
 
     await client.connect(cardhost);
 
-    console.info(chalk.cyan('Interactive mode. Commands:'));
-    console.info(chalk.cyan('  send <APDU_HEX>  - Send APDU command'));
-    console.info(chalk.cyan('  exit, quit       - Exit interactive mode'));
+    console.info(chalk.cyan("Interactive mode. Commands:"));
+    console.info(chalk.cyan("  send <APDU_HEX>  - Send APDU command"));
+    console.info(chalk.cyan("  exit, quit       - Exit interactive mode"));
     console.info();
 
     const rl = createInterface({
       input: process.stdin,
       output: process.stdout,
-      terminal: true
+      terminal: true,
     });
-    
+
     const prompt = () => {
-      rl.setPrompt('> ');
+      rl.setPrompt("> ");
       rl.prompt();
     };
 
-    rl.on('line', async (line) => {
+    rl.on("line", async (line) => {
       const trimmed = line.trim();
-      
-      if (trimmed.toLowerCase() === 'exit' || trimmed.toLowerCase() === 'quit') {
+
+      if (
+        trimmed.toLowerCase() === "exit" ||
+        trimmed.toLowerCase() === "quit"
+      ) {
         rl.close();
         return;
       }
 
-      if (trimmed.toLowerCase().startsWith('send ')) {
+      if (trimmed.toLowerCase().startsWith("send ")) {
         const hex = trimmed.slice(5).trim();
         try {
           // Parse hex string
@@ -78,35 +83,39 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
 
           // Display response
           if (response.data.length > 0) {
-            const dataHex = Array.from(response.data, b =>
-              b.toString(16).padStart(2, '0')
-            ).join('').toUpperCase();
+            const dataHex = Array.from(response.data, (b) =>
+              b.toString(16).padStart(2, "0"),
+            )
+              .join("")
+              .toUpperCase();
             console.info(chalk.green(`< Data: ${dataHex}`));
           }
-          
-          const sw = response.sw.toString(16).padStart(4, '0').toUpperCase();
-          console.info(chalk.green(`< SW: ${sw}`));
 
+          const sw = response.sw.toString(16).padStart(4, "0").toUpperCase();
+          console.info(chalk.green(`< SW: ${sw}`));
         } catch (error) {
           console.error(chalk.red(`Error: ${(error as Error).message}`));
         }
       } else if (trimmed.length > 0) {
-        console.error(chalk.red('Unknown command. Use "send <APDU_HEX>" or "exit".'));
+        console.error(
+          chalk.red('Unknown command. Use "send <APDU_HEX>" or "exit".'),
+        );
       }
-      
+
       prompt();
     });
 
-    rl.on('close', async () => {
-      console.info(chalk.green('\nInteractive session ended.'));
+    rl.on("close", async () => {
+      console.info(chalk.green("\nInteractive session ended."));
       await client.disconnect();
       process.exit(0);
     });
 
     prompt();
-
   } catch (error) {
-    console.error(chalk.red(`Interactive mode failed: ${(error as Error).message}`));
+    console.error(
+      chalk.red(`Interactive mode failed: ${(error as Error).message}`),
+    );
     await client.disconnect().catch(() => {});
     process.exitCode = 1;
   }

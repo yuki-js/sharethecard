@@ -1,20 +1,19 @@
 /**
  * Integration tests for Cardhost with jsapdu-over-ip
- * 
+ *
  * Tests SmartCardPlatformAdapter integration with MockPlatform
  * Validates that Cardhost correctly wraps jsapdu components
- * 
+ *
  * Spec: docs/what-to-make.md Section 6.2.2 - 結合テスト
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { CardhostService, MockSmartCardPlatform } from '@remote-apdu/cardhost';
-import { CommandApdu } from '@aokiapp/jsapdu-interface';
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { CardhostService, MockSmartCardPlatform } from "@remote-apdu/cardhost";
+import { CommandApdu } from "@aokiapp/jsapdu-interface";
 
-describe('Integration: Cardhost + jsapdu', () => {
-
-  describe('Platform and Adapter Integration', () => {
-    it('should wrap platform correctly', async () => {
+describe("Integration: Cardhost + jsapdu", () => {
+  describe("Platform and Adapter Integration", () => {
+    it("should wrap platform correctly", async () => {
       const mockPlatform = new MockSmartCardPlatform();
       await mockPlatform.init();
 
@@ -24,11 +23,11 @@ describe('Integration: Cardhost + jsapdu', () => {
 
       await using device = await mockPlatform.acquireDevice(devices[0].id);
       const isAvailable = await device.isDeviceAvailable();
-      
+
       expect(isAvailable).toBe(true);
     });
 
-    it('should handle device acquisition through adapter', async () => {
+    it("should handle device acquisition through adapter", async () => {
       const mockPlatform = new MockSmartCardPlatform();
       await mockPlatform.init();
 
@@ -41,7 +40,7 @@ describe('Integration: Cardhost + jsapdu', () => {
       expect(device.getDeviceInfo().id).toBe(deviceInfo.id);
     });
 
-    it('should handle card session lifecycle', async () => {
+    it("should handle card session lifecycle", async () => {
       const mockPlatform = new MockSmartCardPlatform();
       await mockPlatform.init();
 
@@ -60,8 +59,8 @@ describe('Integration: Cardhost + jsapdu', () => {
     });
   });
 
-  describe('APDU Command Processing', () => {
-    it('should process SELECT DF command', async () => {
+  describe("APDU Command Processing", () => {
+    it("should process SELECT DF command", async () => {
       const mockPlatform = new MockSmartCardPlatform();
       await mockPlatform.init();
 
@@ -72,11 +71,11 @@ describe('Integration: Cardhost + jsapdu', () => {
       // Standard SELECT DF command
       const selectDf = new CommandApdu(
         0x00, // CLA
-        0xA4, // INS: SELECT
+        0xa4, // INS: SELECT
         0x04, // P1: Select by DF name
         0x00, // P2
-        new Uint8Array([0xA0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]), // AID
-        null
+        new Uint8Array([0xa0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]), // AID
+        null,
       );
 
       const response = await card.transmit(selectDf);
@@ -85,7 +84,7 @@ describe('Integration: Cardhost + jsapdu', () => {
       expect(response.sw).toBe(0x9000);
     });
 
-    it('should process READ BINARY command', async () => {
+    it("should process READ BINARY command", async () => {
       const mockPlatform = new MockSmartCardPlatform();
       await mockPlatform.init();
 
@@ -96,11 +95,11 @@ describe('Integration: Cardhost + jsapdu', () => {
       // READ BINARY command
       const readBinary = new CommandApdu(
         0x00, // CLA
-        0xB0, // INS: READ BINARY
+        0xb0, // INS: READ BINARY
         0x00, // P1: offset high
         0x00, // P2: offset low
         null,
-        256 // Le: expect 256 bytes
+        256, // Le: expect 256 bytes
       );
 
       const response = await card.transmit(readBinary);
@@ -109,7 +108,7 @@ describe('Integration: Cardhost + jsapdu', () => {
       expect(response.sw).toBe(0x9000);
     });
 
-    it('should handle extended APDU (>255 bytes)', async () => {
+    it("should handle extended APDU (>255 bytes)", async () => {
       const mockPlatform = new MockSmartCardPlatform();
       await mockPlatform.init();
 
@@ -120,15 +119,15 @@ describe('Integration: Cardhost + jsapdu', () => {
       // Request more than 256 bytes (triggers extended APDU)
       const extendedRead = new CommandApdu(
         0x00,
-        0xB0,
+        0xb0,
         0x00,
         0x00,
         null,
-        4096 // Extended APDU
+        4096, // Extended APDU
       );
 
       const bytes = extendedRead.toUint8Array();
-      
+
       // Extended APDU should have 0x00 marker
       // Format: CLA INS P1 P2 00 Le1 Le2
       expect(bytes.length).toBe(7); // 4 header + 1 marker + 2 Le bytes
@@ -139,25 +138,25 @@ describe('Integration: Cardhost + jsapdu', () => {
     });
   });
 
-  describe('Configuration and Authentication Integration', () => {
-    it('should generate config with all required fields', async () => {
-      const { ConfigManager } = await import('@remote-apdu/cardhost');
-      const { tmpdir } = await import('node:os');
-      const { join } = await import('node:path');
-      
+  describe("Configuration and Authentication Integration", () => {
+    it("should generate config with all required fields", async () => {
+      const { ConfigManager } = await import("@remote-apdu/cardhost");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+
       const testDir = join(tmpdir(), `test-${Date.now()}`);
-      const testFile = join(testDir, 'config.json');
-      
+      const testFile = join(testDir, "config.json");
+
       const configManager = new ConfigManager(testFile, testDir);
-      const config = await configManager.loadOrCreate('http://test.com');
+      const config = await configManager.loadOrCreate("http://test.com");
 
       expect(config.uuid).toBeDefined();
       expect(config.signingPublicKey).toBeDefined();
       expect(config.signingPrivateKey).toBeDefined();
-      expect(config.routerUrl).toBe('http://test.com');
+      expect(config.routerUrl).toBe("http://test.com");
 
       // Cleanup
-      const { rmSync } = await import('node:fs');
+      const { rmSync } = await import("node:fs");
       rmSync(testDir, { recursive: true, force: true });
     });
   });

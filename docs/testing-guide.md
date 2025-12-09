@@ -48,49 +48,48 @@ Test individual functions and classes in isolation with mocked dependencies.
 #### Encryption Tests
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { encryptAesGcm, decryptAesGcm, generateIv } from '@remote-apdu/shared';
+import { describe, it, expect } from "vitest";
+import { encryptAesGcm, decryptAesGcm, generateIv } from "@remote-apdu/shared";
 
-describe('Encryption Utilities', () => {
-  describe('generateIv', () => {
-    it('should generate a 12-byte IV', () => {
+describe("Encryption Utilities", () => {
+  describe("generateIv", () => {
+    it("should generate a 12-byte IV", () => {
       const iv = generateIv();
       expect(iv).toBeInstanceOf(Uint8Array);
       expect(iv.byteLength).toBe(12);
     });
 
-    it('should generate different IVs on each call', () => {
+    it("should generate different IVs on each call", () => {
       const iv1 = generateIv();
       const iv2 = generateIv();
       expect(iv1).not.toEqual(iv2);
     });
   });
 
-  describe('encryptAesGcm', () => {
-    it('should encrypt plaintext with 32-byte key', () => {
-      const plaintext = new Uint8Array(Buffer.from('Hello, World!', 'utf8'));
+  describe("encryptAesGcm", () => {
+    it("should encrypt plaintext with 32-byte key", () => {
+      const plaintext = new Uint8Array(Buffer.from("Hello, World!", "utf8"));
       const key = new Uint8Array(32);
       crypto.getRandomValues(key);
 
       const result = encryptAesGcm(plaintext, key);
 
-      expect(result).toHaveProperty('iv');
-      expect(result).toHaveProperty('ciphertext');
-      expect(result).toHaveProperty('authTag');
+      expect(result).toHaveProperty("iv");
+      expect(result).toHaveProperty("ciphertext");
+      expect(result).toHaveProperty("authTag");
     });
 
-    it('should throw error if key is not 32 bytes', () => {
-      const plaintext = new Uint8Array(Buffer.from('Hello', 'utf8'));
+    it("should throw error if key is not 32 bytes", () => {
+      const plaintext = new Uint8Array(Buffer.from("Hello", "utf8"));
       const badKey = new Uint8Array(16);
 
-      expect(() => encryptAesGcm(plaintext, badKey))
-        .toThrow('AES-256-GCM requires a 32-byte key');
+      expect(() => encryptAesGcm(plaintext, badKey)).toThrow("AES-256-GCM requires a 32-byte key");
     });
   });
 
-  describe('Encrypt/Decrypt Round Trip', () => {
-    it('should decrypt encrypted payload correctly', () => {
-      const plaintext = new Uint8Array(Buffer.from('Secret Message', 'utf8'));
+  describe("Encrypt/Decrypt Round Trip", () => {
+    it("should decrypt encrypted payload correctly", () => {
+      const plaintext = new Uint8Array(Buffer.from("Secret Message", "utf8"));
       const key = new Uint8Array(32);
       crypto.getRandomValues(key);
 
@@ -106,10 +105,10 @@ describe('Encryption Utilities', () => {
 #### Signing Tests
 
 ```typescript
-describe('Ed25519 Signing', () => {
-  it('should verify valid signature', () => {
+describe("Ed25519 Signing", () => {
+  it("should verify valid signature", () => {
     const { publicKeySpkiBase64, privateKeyPkcs8Base64 } = generateEd25519KeyPairBase64();
-    const payload = new Uint8Array(Buffer.from('verify me', 'utf8'));
+    const payload = new Uint8Array(Buffer.from("verify me", "utf8"));
 
     const signature = signDetachedEd25519(payload, privateKeyPkcs8Base64);
     const isValid = verifyDetachedEd25519(payload, publicKeySpkiBase64, signature);
@@ -117,10 +116,10 @@ describe('Ed25519 Signing', () => {
     expect(isValid).toBe(true);
   });
 
-  it('should reject tampered data', () => {
+  it("should reject tampered data", () => {
     const { publicKeySpkiBase64, privateKeyPkcs8Base64 } = generateEd25519KeyPairBase64();
-    const payload = new Uint8Array(Buffer.from('original', 'utf8'));
-    const tampered = new Uint8Array(Buffer.from('tampered', 'utf8'));
+    const payload = new Uint8Array(Buffer.from("original", "utf8"));
+    const tampered = new Uint8Array(Buffer.from("tampered", "utf8"));
 
     const signature = signDetachedEd25519(payload, privateKeyPkcs8Base64);
     const isValid = verifyDetachedEd25519(tampered, publicKeySpkiBase64, signature);
@@ -133,6 +132,7 @@ describe('Ed25519 Signing', () => {
 ### Best Practices
 
 ✅ **Do**:
+
 - Test one concept per test
 - Use descriptive test names
 - Test happy path, edge cases, and error cases
@@ -140,6 +140,7 @@ describe('Ed25519 Signing', () => {
 - Mock external dependencies
 
 ❌ **Don't**:
+
 - Test multiple unrelated things in one test
 - Use vague names like "test something"
 - Skip error cases
@@ -173,57 +174,57 @@ Test multiple components working together, ensuring they integrate correctly.
 ### Example: Router Authentication
 
 ```typescript
-import { describe, it, expect } from 'vitest';
-import { fetch } from 'undici';
-import { generateEd25519KeyPairBase64, signJsonEd25519 } from '@remote-apdu/shared';
+import { describe, it, expect } from "vitest";
+import { fetch } from "undici";
+import { generateEd25519KeyPairBase64, signJsonEd25519 } from "@remote-apdu/shared";
 
-const ROUTER_URL = 'http://localhost:3000';
+const ROUTER_URL = "http://localhost:3000";
 
-describe('Router Authentication Flows', () => {
-  describe('Controller Bearer Token Authentication', () => {
-    it('should accept valid bearer token and issue session', async () => {
-      const validToken = 'test-bearer-token-12345';
+describe("Router Authentication Flows", () => {
+  describe("Controller Bearer Token Authentication", () => {
+    it("should accept valid bearer token and issue session", async () => {
+      const validToken = "test-bearer-token-12345";
 
       const res = await fetch(`${ROUTER_URL}/controller/connect`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${validToken}`
-        }
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${validToken}`,
+        },
       });
 
       expect(res.ok).toBe(true);
       const body = await res.json();
-      expect(body).toHaveProperty('token');
-      expect(body).toHaveProperty('expiresAt');
+      expect(body).toHaveProperty("token");
+      expect(body).toHaveProperty("expiresAt");
     });
 
-    it('should reject invalid bearer token', async () => {
+    it("should reject invalid bearer token", async () => {
       const res = await fetch(`${ROUTER_URL}/controller/connect`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: 'Bearer short'
-        }
+          "Content-Type": "application/json",
+          Authorization: "Bearer short",
+        },
       });
 
       expect(res.status).toBe(401);
     });
   });
 
-  describe('Cardhost Public Key Authentication', () => {
-    it('should verify signed challenge', async () => {
+  describe("Cardhost Public Key Authentication", () => {
+    it("should verify signed challenge", async () => {
       const { publicKeySpkiBase64, privateKeyPkcs8Base64 } = generateEd25519KeyPairBase64();
-      const testUuid = '550e8400-e29b-41d4-a716-446655440000';
+      const testUuid = "550e8400-e29b-41d4-a716-446655440000";
 
       // Step 1: Get challenge
       const connectRes = await fetch(`${ROUTER_URL}/cardhost/connect`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uuid: testUuid,
-          publicKey: publicKeySpkiBase64
-        })
+          publicKey: publicKeySpkiBase64,
+        }),
       });
 
       expect(connectRes.ok).toBe(true);
@@ -234,14 +235,14 @@ describe('Router Authentication Flows', () => {
 
       // Step 3: Verify
       const verifyRes = await fetch(`${ROUTER_URL}/cardhost/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uuid: testUuid,
           publicKey: publicKeySpkiBase64,
           signature,
-          challenge
-        })
+          challenge,
+        }),
       });
 
       expect(verifyRes.ok).toBe(true);
@@ -255,6 +256,7 @@ describe('Router Authentication Flows', () => {
 ### Best Practices
 
 ✅ **Do**:
+
 - Use real HTTP/WebSocket where possible
 - Test actual data flows
 - Include error scenarios
@@ -262,6 +264,7 @@ describe('Router Authentication Flows', () => {
 - Use reasonable timeouts
 
 ❌ **Don't**:
+
 - Mock everything (defeats purpose)
 - Ignore errors
 - Leave test servers running
@@ -292,48 +295,45 @@ Test complete system flows from user perspective, validating all components work
 ### Example: Complete APDU Flow
 
 ```typescript
-describe('E2E: Complete APDU Send/Receive', () => {
-  it('should complete full APDU transaction', async () => {
+describe("E2E: Complete APDU Send/Receive", () => {
+  it("should complete full APDU transaction", async () => {
     // 1. Setup: Create encryption session
     const controllerEphemeral = generateX25519KeyPairBase64();
     const cardhostEphemeral = generateX25519KeyPairBase64();
 
-    const sharedSecret = computeSharedSecretX25519(
-      controllerEphemeral.privateKeyPkcs8Base64,
-      cardhostEphemeral.publicKeySpkiBase64
-    );
+    const sharedSecret = computeSharedSecretX25519(controllerEphemeral.privateKeyPkcs8Base64, cardhostEphemeral.publicKeySpkiBase64);
 
     const salt = new Uint8Array(32);
     crypto.getRandomValues(salt);
-    const info = new Uint8Array(Buffer.from('remote-apdu-session', 'utf8'));
+    const info = new Uint8Array(Buffer.from("remote-apdu-session", "utf8"));
     const sessionKey = deriveSessionKey(sharedSecret, salt, info);
 
     // 2. Controller sends encrypted APDU
-    const apduCommand = { hex: '00A4040008A000000003000000' };
-    const plaintext = new Uint8Array(Buffer.from(JSON.stringify(apduCommand), 'utf8'));
+    const apduCommand = { hex: "00A4040008A000000003000000" };
+    const plaintext = new Uint8Array(Buffer.from(JSON.stringify(apduCommand), "utf8"));
     const encrypted = encryptAesGcm(plaintext, sessionKey);
 
     // 3. Router relays to Cardhost (no decryption)
 
     // 4. Cardhost decrypts and executes
     const decrypted = decryptAesGcm(encrypted, sessionKey);
-    const receivedCommand = JSON.parse(Buffer.from(decrypted).toString('utf8'));
+    const receivedCommand = JSON.parse(Buffer.from(decrypted).toString("utf8"));
 
     expect(receivedCommand.hex).toBe(apduCommand.hex);
 
     // 5. Cardhost sends response (encrypted)
-    const response = { dataHex: 'A4', sw: '9000' };
-    const respPlaintext = new Uint8Array(Buffer.from(JSON.stringify(response), 'utf8'));
+    const response = { dataHex: "A4", sw: "9000" };
+    const respPlaintext = new Uint8Array(Buffer.from(JSON.stringify(response), "utf8"));
     const respEncrypted = encryptAesGcm(respPlaintext, sessionKey);
 
     // 6. Router relays response to Controller
 
     // 7. Controller decrypts response
     const decryptedResp = decryptAesGcm(respEncrypted, sessionKey);
-    const receivedResp = JSON.parse(Buffer.from(decryptedResp).toString('utf8'));
+    const receivedResp = JSON.parse(Buffer.from(decryptedResp).toString("utf8"));
 
-    expect(receivedResp.sw).toBe('9000');
-    expect(receivedResp.dataHex).toBe('A4');
+    expect(receivedResp.sw).toBe("9000");
+    expect(receivedResp.dataHex).toBe("A4");
   });
 });
 ```
@@ -341,6 +341,7 @@ describe('E2E: Complete APDU Send/Receive', () => {
 ### Best Practices
 
 ✅ **Do**:
+
 - Test complete user scenarios
 - Validate all components together
 - Include timing considerations
@@ -348,6 +349,7 @@ describe('E2E: Complete APDU Send/Receive', () => {
 - Run in isolated environment
 
 ❌ **Don't**:
+
 - Mock core functionality (use real implementations)
 - Test individual components (use unit tests instead)
 - Leave test data/servers
@@ -370,13 +372,13 @@ npm run test:e2e -- --grep "APDU flow"
 
 ### Coverage Goals
 
-| Component | Target | Rationale |
-|-----------|--------|-----------|
-| Crypto utilities | 100% | Critical for security |
-| Authentication | 95% | Important for security |
-| Protocol handling | 85% | Complex logic |
-| CLI/UI | 60% | User-facing, harder to test |
-| Logging | 40% | Nice to have |
+| Component         | Target | Rationale                   |
+| ----------------- | ------ | --------------------------- |
+| Crypto utilities  | 100%   | Critical for security       |
+| Authentication    | 95%    | Important for security      |
+| Protocol handling | 85%    | Complex logic               |
+| CLI/UI            | 60%    | User-facing, harder to test |
+| Logging           | 40%    | Nice to have                |
 
 ### Measuring Coverage
 
@@ -394,6 +396,7 @@ npm test -- --coverage.reporter=text-summary
 ### Coverage Badge
 
 Add to README.md:
+
 ```markdown
 [![Coverage Status](https://img.shields.io/badge/coverage-85%25-brightgreen)](./coverage)
 ```
@@ -403,15 +406,15 @@ Add to README.md:
 ### Module Mocking
 
 ```typescript
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 // Mock entire module
-vi.mock('./external', () => ({
-  externalFunction: vi.fn(() => 'mocked')
+vi.mock("./external", () => ({
+  externalFunction: vi.fn(() => "mocked"),
 }));
 
 // Spy on existing function
-const spy = vi.spyOn(module, 'function');
+const spy = vi.spyOn(module, "function");
 expect(spy).toHaveBeenCalledWith(arg);
 ```
 
@@ -433,24 +436,24 @@ class MockWebSocket {
   }
 }
 
-vi.stubGlobal('WebSocket', MockWebSocket);
+vi.stubGlobal("WebSocket", MockWebSocket);
 ```
 
 ### HTTP Mocking
 
 ```typescript
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
-vi.mock('undici', () => ({
+vi.mock("undici", () => ({
   fetch: vi.fn((url) => {
-    if (url.includes('/cardhosts')) {
+    if (url.includes("/cardhosts")) {
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve([])
+        json: () => Promise.resolve([]),
       });
     }
-    return Promise.reject(new Error('Not mocked'));
-  })
+    return Promise.reject(new Error("Not mocked"));
+  }),
 }));
 ```
 
@@ -469,18 +472,18 @@ node --inspect-brk node_modules/vitest/vitest.mjs run
 
 ```typescript
 // Will only show on failure or with --reporter=verbose
-console.log('Debug info');
+console.log("Debug info");
 
 // Always shows
-process.stdout.write('Always visible\n');
+process.stdout.write("Always visible\n");
 ```
 
 ### Test Isolation
 
 ```typescript
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
-describe('Isolated Tests', () => {
+describe("Isolated Tests", () => {
   let testResource: any;
 
   beforeEach(() => {
@@ -493,7 +496,7 @@ describe('Isolated Tests', () => {
     testResource?.cleanup();
   });
 
-  it('should work independently', () => {
+  it("should work independently", () => {
     expect(testResource).toBeDefined();
   });
 });
@@ -504,13 +507,13 @@ describe('Isolated Tests', () => {
 ### Benchmarking
 
 ```typescript
-it('should encrypt message in < 1ms', async () => {
+it("should encrypt message in < 1ms", async () => {
   const start = performance.now();
-  
+
   for (let i = 0; i < 1000; i++) {
     encryptAesGcm(plaintext, key);
   }
-  
+
   const elapsed = performance.now() - start;
   expect(elapsed / 1000).toBeLessThan(1);
 });
@@ -519,17 +522,17 @@ it('should encrypt message in < 1ms', async () => {
 ### Memory Testing
 
 ```typescript
-it('should not leak memory', () => {
+it("should not leak memory", () => {
   const initialMemory = process.memoryUsage().heapUsed;
-  
+
   // Do work
   for (let i = 0; i < 10000; i++) {
     generateIv();
   }
-  
+
   const finalMemory = process.memoryUsage().heapUsed;
   const increase = (finalMemory - initialMemory) / 1024 / 1024;
-  
+
   expect(increase).toBeLessThan(50); // Less than 50MB
 });
 ```
@@ -539,6 +542,7 @@ it('should not leak memory', () => {
 ### GitHub Actions
 
 Tests run automatically on:
+
 - Pull requests
 - Commits to main/develop
 - Manual trigger
@@ -560,18 +564,21 @@ npm run prepare
 ### Common Issues
 
 **Issue**: Tests timeout
+
 ```bash
 # Increase timeout
 npm test -- --test-timeout=10000
 ```
 
 **Issue**: Module not found
+
 ```bash
 # Rebuild TypeScript
 npm run build
 ```
 
 **Issue**: Flaky tests
+
 ```bash
 # Run specific test multiple times
 for i in {1..10}; do npm test -- specific.test.ts; done

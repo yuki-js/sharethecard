@@ -1,7 +1,7 @@
-import chalk from 'chalk';
-import { readFile } from 'node:fs/promises';
-import { ControllerClient, CommandApdu } from '../lib/index.js';
-import { parseApduHex } from '@remote-apdu/shared';
+import chalk from "chalk";
+import { readFile } from "node:fs/promises";
+import { ControllerClient, CommandApdu } from "../lib/index.js";
+import { parseApduHex } from "@remote-apdu/shared";
 
 export type ScriptCommandArgs = {
   router?: string;
@@ -19,13 +19,15 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
   const { file, router, cardhost, token, verbose } = argv;
 
   if (!file) {
-    console.error(chalk.red('Missing required option: --file <path.json>'));
+    console.error(chalk.red("Missing required option: --file <path.json>"));
     process.exitCode = 2;
     return;
   }
 
   if (!router || !cardhost || !token) {
-    console.error(chalk.red('Missing required options: --router, --cardhost, --token'));
+    console.error(
+      chalk.red("Missing required options: --router, --cardhost, --token"),
+    );
     process.exitCode = 2;
     return;
   }
@@ -33,9 +35,11 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
   // Read script file
   let content: string;
   try {
-    content = await readFile(file, 'utf8');
+    content = await readFile(file, "utf8");
   } catch (error) {
-    console.error(chalk.red(`Failed to read file: ${(error as Error).message}`));
+    console.error(
+      chalk.red(`Failed to read file: ${(error as Error).message}`),
+    );
     process.exitCode = 2;
     return;
   }
@@ -58,16 +62,18 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
       routerUrl: router,
       token,
       cardhostUuid: cardhost,
-      verbose
+      verbose,
     });
 
     if (verbose) {
-      console.info(chalk.gray('[verbose] Connecting...'));
+      console.info(chalk.gray("[verbose] Connecting..."));
     }
 
     await client.connect(cardhost);
 
-    console.info(chalk.cyan(`Executing ${commands.length} commands from ${file}...`));
+    console.info(
+      chalk.cyan(`Executing ${commands.length} commands from ${file}...`),
+    );
     console.info();
 
     let successCount = 0;
@@ -75,7 +81,7 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
 
     for (let i = 0; i < commands.length; i++) {
       const cmd = commands[i];
-      
+
       try {
         // Parse hex
         const bytes = parseApduHex(cmd.apdu);
@@ -84,37 +90,47 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
         const command = CommandApdu.fromUint8Array(commandBytes as any);
 
         if (verbose) {
-          console.info(chalk.gray(`[verbose] [${i + 1}/${commands.length}] Sending: ${cmd.apdu}`));
+          console.info(
+            chalk.gray(
+              `[verbose] [${i + 1}/${commands.length}] Sending: ${cmd.apdu}`,
+            ),
+          );
         }
 
         const response = await client.transmit(command);
 
         // Display response
-        const sw = response.sw.toString(16).padStart(4, '0').toUpperCase();
+        const sw = response.sw.toString(16).padStart(4, "0").toUpperCase();
         console.info(chalk.green(`[${i + 1}] SW: ${sw}`));
-        
+
         if (response.data.length > 0) {
-          const dataHex = Array.from(response.data, b =>
-            b.toString(16).padStart(2, '0')
-          ).join('').toUpperCase();
+          const dataHex = Array.from(response.data, (b) =>
+            b.toString(16).padStart(2, "0"),
+          )
+            .join("")
+            .toUpperCase();
           console.info(chalk.green(`    Data: ${dataHex}`));
         }
 
         successCount++;
-
       } catch (error) {
-        console.error(chalk.red(`[${i + 1}] Failed: ${(error as Error).message}`));
+        console.error(
+          chalk.red(`[${i + 1}] Failed: ${(error as Error).message}`),
+        );
         failCount++;
       }
     }
 
     console.info();
-    console.info(chalk.green(`✓ Completed: ${successCount} success, ${failCount} failed`));
+    console.info(
+      chalk.green(`✓ Completed: ${successCount} success, ${failCount} failed`),
+    );
 
     // Cleanup handled by await using
-
   } catch (error) {
-    console.error(chalk.red(`Script execution failed: ${(error as Error).message}`));
+    console.error(
+      chalk.red(`Script execution failed: ${(error as Error).message}`),
+    );
     process.exitCode = 1;
   }
 }

@@ -2,35 +2,39 @@
  * Router Service - Core Library
  * Manages authentication and relay between Controllers and Cardhosts
  * Provides testable, composable Router functionality
- * 
+ *
  * Spec: docs/what-to-make.md Section 3.3 - Router
  */
 
-import { ControllerAuth } from './auth/controller-auth.js';
-import { CardhostAuth } from './auth/cardhost-auth.js';
-import { SessionRelay } from './relay/session-relay.js';
-import type { SessionToken, CardhostInfo, RouterConfig } from '@remote-apdu/shared';
+import { ControllerAuth } from "./auth/controller-auth.js";
+import { CardhostAuth } from "./auth/cardhost-auth.js";
+import { SessionRelay } from "./relay/session-relay.js";
+import type {
+  SessionToken,
+  CardhostInfo,
+  RouterConfig,
+} from "@remote-apdu/shared";
 
 /**
  * Router Service
- * 
+ *
  * This is the library core - fully testable without HTTP server.
- * 
+ *
  * Usage:
  * ```typescript
  * const router = new RouterService({ port: 3000 });
  * await router.start();
- * 
+ *
  * // Authenticate Controller
  * const sessionToken = await router.authenticateController('bearer-token');
- * 
+ *
  * // Authenticate Cardhost
  * const challenge = await router.initiateCardhostAuth(uuid, publicKey);
  * await router.verifyCardhostAuth(uuid, challenge, signature);
- * 
+ *
  * // Create relay session
  * const relayId = router.createRelaySession(sessionToken, uuid);
- * 
+ *
  * await router.stop();
  * ```
  */
@@ -45,7 +49,7 @@ export class RouterService {
     private config: RouterConfig = {},
     controllerAuth?: ControllerAuth,
     cardhostAuth?: CardhostAuth,
-    sessionRelay?: SessionRelay
+    sessionRelay?: SessionRelay,
   ) {
     // Use provided or create new auth managers
     this.controllerAuth = controllerAuth ?? new ControllerAuth();
@@ -59,7 +63,7 @@ export class RouterService {
    */
   async start(): Promise<void> {
     if (this.running) {
-      throw new Error('Router already running');
+      throw new Error("Router already running");
     }
 
     await this.sessionRelay.initialize();
@@ -119,7 +123,7 @@ export class RouterService {
   async verifyCardhostAuth(
     uuid: string,
     challenge: string,
-    signature: string
+    signature: string,
   ): Promise<boolean> {
     return this.cardhostAuth.verifyAuth(uuid, challenge, signature);
   }
@@ -136,19 +140,22 @@ export class RouterService {
    */
   createRelaySession(
     controllerSessionToken: string,
-    cardhostUuid: string
+    cardhostUuid: string,
   ): string {
     // Validate controller session
     if (!this.validateControllerSession(controllerSessionToken)) {
-      throw new Error('Invalid or expired controller session');
+      throw new Error("Invalid or expired controller session");
     }
 
     // Validate cardhost is connected
     if (!this.isCardhostConnected(cardhostUuid)) {
-      throw new Error('Cardhost not connected');
+      throw new Error("Cardhost not connected");
     }
 
-    return this.sessionRelay.createSession(controllerSessionToken, cardhostUuid);
+    return this.sessionRelay.createSession(
+      controllerSessionToken,
+      cardhostUuid,
+    );
   }
 
   /**
@@ -197,13 +204,14 @@ export class RouterService {
     connectedCardhosts: number;
   } {
     const connections = this.sessionRelay.getConnectionCounts();
-    
+
     return {
       running: this.running,
       activeControllers: this.controllerAuth.getActiveSessionCount(),
       activeCardhosts: connections.cardhosts,
       activeSessions: this.sessionRelay.getActiveRelayCount(),
-      connectedCardhosts: this.listCardhosts().filter(c => c.connected).length
+      connectedCardhosts: this.listCardhosts().filter((c) => c.connected)
+        .length,
     };
   }
 }

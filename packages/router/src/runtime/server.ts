@@ -2,16 +2,16 @@
 /**
  * Router Runtime - Standalone Server
  * Thin wrapper around RouterService library with Hono HTTP server
- * 
+ *
  * This is the "下駄" (runtime wrapper) that makes the library work as standalone service
  * Spec: docs/what-to-make.md Section 3.5 - 共通項
  */
 
-import { Hono } from 'hono';
-import { serve } from '@hono/node-server';
-import { RouterService } from '../lib/index.js';
-import type { SessionToken } from '@remote-apdu/shared';
-import { WebSocketServer } from 'ws';
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { RouterService } from "../lib/index.js";
+import type { SessionToken } from "@remote-apdu/shared";
+import { WebSocketServer } from "ws";
 
 const app = new Hono();
 const router = new RouterService();
@@ -19,7 +19,7 @@ const router = new RouterService();
 /**
  * GET /cardhosts - List connected Cardhosts
  */
-app.get('/cardhosts', (c) => {
+app.get("/cardhosts", (c) => {
   const list = router.listCardhosts();
   return c.json(list);
 });
@@ -28,18 +28,19 @@ app.get('/cardhosts', (c) => {
  * POST /controller/connect - Controller bearer token authentication
  * Spec: docs/what-to-make.md Section 4.2.1
  */
-app.post('/controller/connect', async (c) => {
-  const auth = c.req.header('authorization') ?? '';
+app.post("/controller/connect", async (c) => {
+  const auth = c.req.header("authorization") ?? "";
   const match = auth.match(/^Bearer\s+(.+)$/i);
-  
+
   if (!match) {
-    return c.json({ error: 'Missing or invalid Authorization header' }, 401);
+    return c.json({ error: "Missing or invalid Authorization header" }, 401);
   }
 
   const bearerToken = match[1];
 
   try {
-    const sessionToken: SessionToken = await router.authenticateController(bearerToken);
+    const sessionToken: SessionToken =
+      await router.authenticateController(bearerToken);
     return c.json(sessionToken, 201);
   } catch (error) {
     return c.json({ error: (error as Error).message }, 401);
@@ -50,17 +51,17 @@ app.post('/controller/connect', async (c) => {
  * POST /cardhost/connect - Cardhost authentication step 1 (issue challenge)
  * Spec: docs/what-to-make.md Section 4.1.1
  */
-app.post('/cardhost/connect', async (c) => {
+app.post("/cardhost/connect", async (c) => {
   const body = await c.req.json().catch(() => null);
 
-  if (!body || typeof body !== 'object') {
-    return c.json({ error: 'Invalid request body' }, 400);
+  if (!body || typeof body !== "object") {
+    return c.json({ error: "Invalid request body" }, 400);
   }
 
   const { uuid, publicKey } = body as { uuid?: string; publicKey?: string };
 
   if (!uuid || !publicKey) {
-    return c.json({ error: 'uuid and publicKey required' }, 400);
+    return c.json({ error: "uuid and publicKey required" }, 400);
   }
 
   try {
@@ -75,11 +76,11 @@ app.post('/cardhost/connect', async (c) => {
  * POST /cardhost/verify - Cardhost authentication step 2 (verify signature)
  * Spec: docs/what-to-make.md Section 4.1.1
  */
-app.post('/cardhost/verify', async (c) => {
+app.post("/cardhost/verify", async (c) => {
   const body = await c.req.json().catch(() => null);
 
-  if (!body || typeof body !== 'object') {
-    return c.json({ error: 'Invalid request body' }, 400);
+  if (!body || typeof body !== "object") {
+    return c.json({ error: "Invalid request body" }, 400);
   }
 
   const { uuid, challenge, signature } = body as {
@@ -89,14 +90,14 @@ app.post('/cardhost/verify', async (c) => {
   };
 
   if (!uuid || !challenge || !signature) {
-    return c.json({ error: 'uuid, challenge, and signature required' }, 400);
+    return c.json({ error: "uuid, challenge, and signature required" }, 400);
   }
 
   try {
     const isValid = await router.verifyCardhostAuth(uuid, challenge, signature);
-    
+
     if (!isValid) {
-      return c.json({ error: 'Signature verification failed' }, 401);
+      return c.json({ error: "Signature verification failed" }, 401);
     }
 
     return c.json({ ok: true }, 200);
@@ -109,23 +110,23 @@ app.post('/cardhost/verify', async (c) => {
  * POST /sessions - Create relay session between Controller and Cardhost
  * Spec: docs/what-to-make.md Section 4.2.2
  */
-app.post('/sessions', async (c) => {
-  const sessionToken = c.req.header('x-session-token') ?? '';
+app.post("/sessions", async (c) => {
+  const sessionToken = c.req.header("x-session-token") ?? "";
 
   if (!router.validateControllerSession(sessionToken)) {
-    return c.json({ error: 'Invalid or expired session token' }, 401);
+    return c.json({ error: "Invalid or expired session token" }, 401);
   }
 
   const body = await c.req.json().catch(() => null);
 
-  if (!body || typeof body !== 'object') {
-    return c.json({ error: 'Invalid request body' }, 400);
+  if (!body || typeof body !== "object") {
+    return c.json({ error: "Invalid request body" }, 400);
   }
 
   const { cardhostUuid } = body as { cardhostUuid?: string };
 
   if (!cardhostUuid) {
-    return c.json({ error: 'cardhostUuid required' }, 400);
+    return c.json({ error: "cardhostUuid required" }, 400);
   }
 
   try {
@@ -133,11 +134,11 @@ app.post('/sessions', async (c) => {
     return c.json({ relayId }, 201);
   } catch (error) {
     const message = (error as Error).message;
-    
-    if (message.includes('not connected')) {
+
+    if (message.includes("not connected")) {
       return c.json({ error: message }, 404);
     }
-    
+
     return c.json({ error: message }, 400);
   }
 });
@@ -147,26 +148,32 @@ app.post('/sessions', async (c) => {
  * This is where Controller sends jsapdu-interface calls
  * Router relays to Cardhost
  */
-app.post('/api/jsapdu/rpc', async (c) => {
-  const sessionToken = c.req.header('x-session-token') ?? '';
-  const cardhostUuid = c.req.header('x-cardhost-uuid') ?? '';
+app.post("/api/jsapdu/rpc", async (c) => {
+  const sessionToken = c.req.header("x-session-token") ?? "";
+  const cardhostUuid = c.req.header("x-cardhost-uuid") ?? "";
 
   if (!router.validateControllerSession(sessionToken)) {
-    return c.json({ 
-      error: { 
-        code: 'UNAUTHORIZED', 
-        message: 'Invalid or expired session token' 
-      } 
-    }, 401);
+    return c.json(
+      {
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Invalid or expired session token",
+        },
+      },
+      401,
+    );
   }
 
   if (!cardhostUuid) {
-    return c.json({ 
-      error: { 
-        code: 'BAD_REQUEST', 
-        message: 'x-cardhost-uuid header required' 
-      } 
-    }, 400);
+    return c.json(
+      {
+        error: {
+          code: "BAD_REQUEST",
+          message: "x-cardhost-uuid header required",
+        },
+      },
+      400,
+    );
   }
 
   const request = await c.req.json();
@@ -181,7 +188,7 @@ app.post('/api/jsapdu/rpc', async (c) => {
 /**
  * GET /stats - Router statistics
  */
-app.get('/stats', (c) => {
+app.get("/stats", (c) => {
   const stats = router.getStats();
   return c.json(stats);
 });
@@ -192,24 +199,24 @@ app.get('/stats', (c) => {
  */
 export async function startRuntimeServer(
   port: number = Number(process.env.PORT ?? 3000),
-  host: string = process.env.HOST ?? '0.0.0.0'
+  host: string = process.env.HOST ?? "0.0.0.0",
 ): Promise<{
   server: ReturnType<typeof serve>;
-  wss: import('ws').WebSocketServer;
+  wss: import("ws").WebSocketServer;
   router: RouterService;
   stop: () => Promise<void>;
 }> {
   // Start Router service
   await router.start();
 
-  console.log('Starting Router Server...');
+  console.log("Starting Router Server...");
   console.log(`Listening on http://${host}:${port}`);
 
   // Start HTTP server
   const server = serve({
     fetch: app.fetch,
     port,
-    hostname: host
+    hostname: host,
   });
 
   // WebSocket RPC relay handler
@@ -217,69 +224,83 @@ export async function startRuntimeServer(
   // while ws expects a concrete http/https server type. At runtime this is an http server.
   const wss = new WebSocketServer({ server: server as any });
 
-  wss.on('connection', (ws, req) => {
-    const url = req.url || '';
-    if (!url.startsWith('/api/jsapdu/ws')) {
-      try { ws.close(1008, 'Invalid path'); } catch {}
+  wss.on("connection", (ws, req) => {
+    const url = req.url || "";
+    if (!url.startsWith("/api/jsapdu/ws")) {
+      try {
+        ws.close(1008, "Invalid path");
+      } catch {}
       return;
     }
 
-    const role = String(req.headers['x-role'] ?? '');
-    const sessionToken = String(req.headers['x-session-token'] ?? '');
-    const cardhostUuid = String(req.headers['x-cardhost-uuid'] ?? '');
+    const role = String(req.headers["x-role"] ?? "");
+    const sessionToken = String(req.headers["x-session-token"] ?? "");
+    const cardhostUuid = String(req.headers["x-cardhost-uuid"] ?? "");
     const relay = router.getSessionRelay();
 
-    if (role === 'cardhost') {
+    if (role === "cardhost") {
       if (!cardhostUuid) {
-        try { ws.close(1008, 'x-cardhost-uuid required'); } catch {}
+        try {
+          ws.close(1008, "x-cardhost-uuid required");
+        } catch {}
         return;
       }
       if (!router.isCardhostConnected(cardhostUuid)) {
-        try { ws.close(1008, 'Cardhost not authenticated'); } catch {}
+        try {
+          ws.close(1008, "Cardhost not authenticated");
+        } catch {}
         return;
       }
 
       relay.registerCardhostConnection(cardhostUuid, {
         id: `ws-${Date.now()}`,
-        role: 'cardhost',
+        role: "cardhost",
         identifier: cardhostUuid,
         send: (payload: unknown) => {
           try {
-            ws.send(typeof payload === 'string' ? payload : JSON.stringify(payload));
+            ws.send(
+              typeof payload === "string" ? payload : JSON.stringify(payload),
+            );
           } catch {}
-        }
+        },
       });
 
-      ws.on('message', (data) => {
+      ws.on("message", (data) => {
         relay.handleCardhostMessage(cardhostUuid, data);
       });
 
-      ws.on('close', () => {
+      ws.on("close", () => {
         relay.unregisterCardhost(cardhostUuid);
         router.getCardhostAuth().disconnect(cardhostUuid);
       });
-    } else if (role === 'controller') {
+    } else if (role === "controller") {
       if (!sessionToken || !router.validateControllerSession(sessionToken)) {
-        try { ws.close(1008, 'Invalid session token'); } catch {}
+        try {
+          ws.close(1008, "Invalid session token");
+        } catch {}
         return;
       }
 
       relay.registerControllerConnection(sessionToken, {
         id: `ws-${Date.now()}`,
-        role: 'controller',
+        role: "controller",
         identifier: sessionToken,
         send: (payload: unknown) => {
           try {
-            ws.send(typeof payload === 'string' ? payload : JSON.stringify(payload));
+            ws.send(
+              typeof payload === "string" ? payload : JSON.stringify(payload),
+            );
           } catch {}
-        }
+        },
       });
 
-      ws.on('close', () => {
+      ws.on("close", () => {
         relay.unregisterController(sessionToken);
       });
     } else {
-      try { ws.close(1008, 'x-role required'); } catch {}
+      try {
+        ws.close(1008, "x-role required");
+      } catch {}
     }
   });
 
@@ -288,10 +309,14 @@ export async function startRuntimeServer(
     wss,
     router,
     async stop() {
-      try { wss.close(); } catch {}
+      try {
+        wss.close();
+      } catch {}
       await router.stop();
-      try { server.close(); } catch {}
-    }
+      try {
+        server.close();
+      } catch {}
+    },
   };
 }
 
@@ -300,25 +325,25 @@ export async function startRuntimeServer(
  */
 async function main(): Promise<void> {
   const port = Number(process.env.PORT ?? 3000);
-  const host = process.env.HOST ?? '0.0.0.0';
+  const host = process.env.HOST ?? "0.0.0.0";
 
   const runtime = await startRuntimeServer(port, host);
 
   // Graceful shutdown
   const shutdown = async () => {
-    console.log('\nShutting down Router...');
+    console.log("\nShutting down Router...");
     await runtime.stop();
-    console.log('✓ Stopped');
+    console.log("✓ Stopped");
     process.exit(0);
   };
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 if (!process.env.VITEST) {
   main().catch((error) => {
-    console.error('Fatal error:', error);
+    console.error("Fatal error:", error);
     process.exit(1);
   });
 }

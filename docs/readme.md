@@ -6,7 +6,7 @@ A distributed system for secure, remote APDU (Application Protocol Data Unit) co
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - TypeScript compiler (included)
 
@@ -102,15 +102,13 @@ node packages/controller/dist/cli.js script \
 
 ## Security Model
 
-- **Authentication**: 
+- **Authentication**:
   - Controller: Bearer token
   - Cardhost: Public key + challenge-response
-  
-- **E2E Encryption**: 
+- **E2E Encryption**:
   - ECDH for key exchange
   - AES-256-GCM for message encryption
   - Ed25519/ECDSA for message signing
-  
 - **Data Protection**:
   - Router cannot decrypt messages (no access to session keys)
   - All critical operations are digitally signed
@@ -187,12 +185,14 @@ npm run typecheck
 ### Environment Variables
 
 **Router**:
+
 ```
 PORT=3000                    # HTTP port
 ROUTER_URL=http://localhost:3000
 ```
 
 **Cardhost**:
+
 ```
 ROUTER_URL=http://localhost:3000  # Router URL
 PORT=8001                           # Monitor port
@@ -200,6 +200,7 @@ CONFIG_DIR=~/.cardhost              # Config directory
 ```
 
 **Controller**:
+
 ```
 CONTROLLER_ROUTER=http://localhost:3000
 CONTROLLER_TOKEN=your-bearer-token
@@ -209,6 +210,7 @@ CONTROLLER_CARDHOST=<uuid>
 ### Configuration Files
 
 **Cardhost** (`~/.cardhost/config.json`):
+
 ```json
 {
   "routerUrl": "http://localhost:3000",
@@ -225,6 +227,7 @@ See [`docs/api-specification.md`](./api-specification.md) for complete API docum
 ### Key Endpoints
 
 **Router**:
+
 - `GET /cardhosts` - List available Cardhosts
 - `POST /controller/connect` - Controller authentication
 - `POST /cardhost/connect` - Cardhost challenge request
@@ -233,6 +236,7 @@ See [`docs/api-specification.md`](./api-specification.md) for complete API docum
 - `GET /ws/session` - WebSocket upgrade
 
 **Cardhost Monitor**:
+
 - `GET /monitor` - Monitoring UI
 - `GET /monitor/status` - Current status
 - `GET /monitor/metrics` - Performance metrics
@@ -277,12 +281,9 @@ node packages/controller/dist/cli.js interactive \
 ### Example 3: Script Execution
 
 **commands.json**:
+
 ```json
-[
-  { "apdu": "00A4040008A000000003000000" },
-  { "apdu": "00B0000000" },
-  { "apdu": "00B0010000" }
-]
+[{ "apdu": "00A4040008A000000003000000" }, { "apdu": "00B0000000" }, { "apdu": "00B0010000" }]
 ```
 
 ```bash

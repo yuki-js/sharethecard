@@ -9,6 +9,7 @@
 ## 📋 Files Reviewed (Complete)
 
 ### Implementation Files (24 files)
+
 - ✅ All library core files (Controller, Cardhost, Router)
 - ✅ All runtime wrappers
 - ✅ All command handlers
@@ -17,6 +18,7 @@
 - ✅ All utility and type files
 
 ### Test Files (5 files)
+
 - ✅ Unit tests (3 files)
 - ✅ Integration tests (1 file)
 - ✅ E2E tests (1 file)
@@ -28,6 +30,7 @@
 **Grade**: B+ → **A-** (after detailed review)
 
 **Why upgraded**: Upon thorough review, code quality is better than initial assessment:
+
 - Clean architecture with clear separation
 - Good test coverage for critical paths
 - No major bugs or security holes
@@ -44,10 +47,12 @@
 #### Duplicated Logic Found:
 
 **2.1. `canonicalizeJson` Function** (44 lines × 2 = 88 lines)
+
 - [`packages/cardhost/src/lib/auth-manager.ts:113-133`](../../packages/cardhost/src/lib/auth-manager.ts:113-133)
 - [`packages/router/src/lib/auth/cardhost-auth.ts:152-172`](../../packages/router/src/lib/auth/cardhost-auth.ts:152-172)
 
 **2.2. Hex Parsing Logic** (~15 lines × 3 = 45 lines)
+
 - [`packages/controller/src/commands/send.ts:32-61`](../../packages/controller/src/commands/send.ts:32-61)
 - [`packages/controller/src/commands/interactive.ts:67-75`](../../packages/controller/src/commands/interactive.ts:67-75)
 - [`packages/controller/src/commands/script.ts:80-88`](../../packages/controller/src/commands/script.ts:80-88)
@@ -69,6 +74,7 @@
 **Issue**: Router has no WebSocket handler for `/api/jsapdu/ws`
 
 **Evidence**:
+
 - Cardhost tries to connect: [`packages/cardhost/src/lib/router-transport.ts:64`](../../packages/cardhost/src/lib/router-transport.ts:64)
   ```typescript
   this.ws = new WebSocket(`${wsUrl}/api/jsapdu/ws`, ...)
@@ -79,11 +85,12 @@
 **Impact**: ⚠️ **Cardhost cannot connect in production**
 
 **Fix**: Add WebSocket upgrade handler:
+
 ```typescript
-import { WebSocketServer } from 'ws';
+import { WebSocketServer } from "ws";
 const wss = new WebSocketServer({ noServer: true });
-server.on('upgrade', (req, socket, head) => {
-  if (req.url === '/api/jsapdu/ws') {
+server.on("upgrade", (req, socket, head) => {
+  if (req.url === "/api/jsapdu/ws") {
     wss.handleUpgrade(req, socket, head, (ws) => {
       // Handle RPC over WebSocket
     });
@@ -96,13 +103,14 @@ server.on('upgrade', (req, socket, head) => {
 **Location**: [`packages/router/src/lib/relay/session-relay.ts:174-180`](../../packages/router/src/lib/relay/session-relay.ts:174-180)
 
 **Issue**: Placeholder code returns error
+
 ```typescript
 return {
   id: request.id,
   error: {
-    code: 'NOT_IMPLEMENTED',
-    message: 'RPC relay not yet implemented'
-  }
+    code: "NOT_IMPLEMENTED",
+    message: "RPC relay not yet implemented",
+  },
 };
 ```
 
@@ -118,12 +126,13 @@ return {
 
 #### 2.1. Duplicated `canonicalizeJson` - **88 lines**
 
-**Should be**: 
+**Should be**:
+
 ```typescript
 // packages/shared/src/utils/canonical-json.ts
 export function canonicalizeJson(input: unknown): Uint8Array {
   const canonical = JSON.stringify(sortKeys(input));
-  return new Uint8Array(Buffer.from(canonical, 'utf8'));
+  return new Uint8Array(Buffer.from(canonical, "utf8"));
 }
 
 function sortKeys(value: unknown): unknown {
@@ -132,6 +141,7 @@ function sortKeys(value: unknown): unknown {
 ```
 
 **Used by**:
+
 - AuthManager (Cardhost signing)
 - CardhostAuth (Router verification)
 
@@ -140,12 +150,13 @@ function sortKeys(value: unknown): unknown {
 #### 2.2. Duplicated Hex Parsing - **45 lines**
 
 **Should be**:
+
 ```typescript
 // packages/controller/src/lib/utils.ts or shared
 export function parseApduHex(hex: string): Uint8Array {
-  const cleaned = hex.replace(/\s+/g, '');
+  const cleaned = hex.replace(/\s+/g, "");
   if (!/^[0-9a-fA-F]*$/.test(cleaned) || cleaned.length % 2 !== 0) {
-    throw new Error('Invalid APDU hex format');
+    throw new Error("Invalid APDU hex format");
   }
   const bytes = new Uint8Array(cleaned.length / 2);
   for (let i = 0; i < cleaned.length; i += 2) {
@@ -172,6 +183,7 @@ export function parseApduHex(hex: string): Uint8Array {
 **File**: [`packages/controller/src/lib/session-manager.ts`](../../packages/controller/src/lib/session-manager.ts:121)
 
 **Missing**:
+
 - Bearer token caching logic
 - Session token expiration
 - Cardhost listing with auth
@@ -186,6 +198,7 @@ export function parseApduHex(hex: string): Uint8Array {
 **File**: [`packages/cardhost/src/lib/auth-manager.ts`](../../packages/cardhost/src/lib/auth-manager.ts:141)
 
 **Missing**:
+
 - Challenge signing with Ed25519
 - Authentication flow (2-step)
 - Canonical JSON signing
@@ -198,10 +211,12 @@ export function parseApduHex(hex: string): Uint8Array {
 #### 3.3. Transport Layers - 0/~6 tests ❌
 
 **Files**:
+
 - [`packages/controller/src/lib/router-transport.ts`](../../packages/controller/src/lib/router-transport.ts:93)
 - [`packages/cardhost/src/lib/router-transport.ts`](../../packages/cardhost/src/lib/router-transport.ts:147)
 
 **Missing**:
+
 - RPC request serialization
 - RPC response validation
 - Type guards
@@ -218,12 +233,13 @@ export function parseApduHex(hex: string): Uint8Array {
 **Location**: [`packages/cardhost/src/lib/cardhost-service.ts:81`](../../packages/cardhost/src/lib/cardhost-service.ts:81)
 
 ```typescript
-const config = await this.configManager.loadOrCreate(this.authManager['routerUrl']);
+const config = await this.configManager.loadOrCreate(this.authManager["routerUrl"]);
 //                                                                    ^^^^^^^^^^
 // Accessing private property via bracket notation
 ```
 
 **Fix**: Add getter to AuthManager:
+
 ```typescript
 getRouterUrl(): string {
   return this.routerUrl;
@@ -233,12 +249,14 @@ getRouterUrl(): string {
 #### 4.2. Console.error in Library Code
 
 **Locations**:
+
 - [`packages/router/src/lib/auth/cardhost-auth.ts:144`](../../packages/router/src/lib/auth/cardhost-auth.ts:144)
 - [`packages/cardhost/src/lib/router-transport.ts:138`](../../packages/cardhost/src/lib/router-transport.ts:138)
 
 **Issue**: Library code should not use console directly
 
-**Recommendation**: 
+**Recommendation**:
+
 - Remove console.error from library
 - Let errors propagate to caller
 - Or inject logger interface
@@ -261,15 +279,16 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 ### Lines of Code by Component
 
-| Component | Library | Runtime | Commands | Tests | Total |
-|-----------|---------|---------|----------|-------|-------|
-| Controller | 410 | 94 | 385 | 0 | 889 |
-| Cardhost | 688 | 108 | 0 | 476 | 1,272 |
-| Router | 556 | 226 | 0 | 513 | 1,295 |
-| Shared | 81 | 0 | 0 | 0 | 81 |
-| **Total** | **1,735** | **428** | **385** | **989** | **3,537** |
+| Component  | Library   | Runtime | Commands | Tests   | Total     |
+| ---------- | --------- | ------- | -------- | ------- | --------- |
+| Controller | 410       | 94      | 385      | 0       | 889       |
+| Cardhost   | 688       | 108     | 0        | 476     | 1,272     |
+| Router     | 556       | 226     | 0        | 513     | 1,295     |
+| Shared     | 81        | 0       | 0        | 0       | 81        |
+| **Total**  | **1,735** | **428** | **385**  | **989** | **3,537** |
 
 **Analysis**:
+
 - Library: 49% of codebase (good - core logic)
 - Runtime: 12% of codebase (good - thin wrappers)
 - Commands: 11% of codebase (good - CLI handlers)
@@ -277,16 +296,16 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 ### Test Coverage Detail
 
-| Component | Tests | Lines | Coverage | Status |
-|-----------|-------|-------|----------|--------|
-| MockPlatform | 20 | 304 | 289/304 = 95% | ✅ Excellent |
-| ConfigManager | 16 | 174 | 160/174 = 92% | ✅ Excellent |
-| ControllerAuth | 13 | 110 | 95/110 = 86% | ✅ Good |
-| RouterService | 13 | 209 | 180/209 = 86% | ✅ Good |
-| SessionManager | 0 | 121 | 0% | ❌ Missing |
-| AuthManager (CH) | 0 | 141 | 0% | ❌ Missing |
-| Transports | 0 | 240 | 0% | ❌ Missing |
-| **Average** | **28** | **1,259** | **~60%** | **⚠️ Needs work** |
+| Component        | Tests  | Lines     | Coverage      | Status            |
+| ---------------- | ------ | --------- | ------------- | ----------------- |
+| MockPlatform     | 20     | 304       | 289/304 = 95% | ✅ Excellent      |
+| ConfigManager    | 16     | 174       | 160/174 = 92% | ✅ Excellent      |
+| ControllerAuth   | 13     | 110       | 95/110 = 86%  | ✅ Good           |
+| RouterService    | 13     | 209       | 180/209 = 86% | ✅ Good           |
+| SessionManager   | 0      | 121       | 0%            | ❌ Missing        |
+| AuthManager (CH) | 0      | 141       | 0%            | ❌ Missing        |
+| Transports       | 0      | 240       | 0%            | ❌ Missing        |
+| **Average**      | **28** | **1,259** | **~60%**      | **⚠️ Needs work** |
 
 **Target Coverage**: 80% (per spec Section 6.3.1)  
 **Current Coverage**: ~60%  
@@ -320,11 +339,13 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 ### What Tests Do Well
 
 ✅ **Test Organization**
+
 - Clear describe/it structure
 - Logical grouping by functionality
 - Good use of beforeEach/afterEach
 
 ✅ **Test Coverage of Critical Paths**
+
 - Platform initialization ✅
 - Device acquisition ✅
 - Card sessions ✅
@@ -332,6 +353,7 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 - Error conditions ✅
 
 ✅ **Test Patterns**
+
 - No console.log (spec requirement)
 - Meaningful assertions
 - Tests demonstrate correct usage
@@ -340,18 +362,21 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 ### What Tests Are Missing
 
 ❌ **SessionManager Tests** (0/~8 needed)
+
 - Token caching
 - Expiration handling
 - Network error scenarios
 - Concurrent requests
 
 ❌ **AuthManager Tests** (0/~8 needed)
+
 - Ed25519 signing
 - Challenge flow
 - Canonical JSON
 - Error recovery
 
 ❌ **Transport Tests** (0/~6 needed)
+
 - RPC serialization
 - Type validation
 - Connection handling
@@ -385,19 +410,21 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 ### Vulnerabilities ⚠️
 
 1. **Bearer Token Validation Weak**
+
    ```typescript
    // Only checks length >= 10
    private validateBearerToken(token: string): boolean {
      return token.length >= 10;
    }
    ```
+
    **Risk**: Low (for dev/test acceptable)  
    **Production**: Must use JWT or proper token validation
 
 2. **No Rate Limiting**
    - Multiple authentication attempts allowed
    - No DDoS protection
-   **Production**: Add rate limiting middleware
+     **Production**: Add rate limiting middleware
 
 3. **Error Message Information Disclosure**
    ```typescript
@@ -421,23 +448,26 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 ### Documentation Quality ✅
 
 **File Headers**: Every file has:
+
 - Purpose description
 - Spec reference
 - jsapdu reference (where applicable)
 
 **Example** (excellent):
+
 ```typescript
 /**
  * Controller Client - Core Library
  * Wraps RemoteSmartCardPlatform from jsapdu-over-ip
  * Provides testable, composable Controller functionality
- * 
+ *
  * Spec: docs/what-to-make.md Section 3.1 - Controller
  * Reference: research/jsapdu-over-ip/src/client/platform-proxy.ts
  */
 ```
 
 **Method Documentation**: All public methods have:
+
 - Purpose
 - Parameters (where complex)
 - Return value description
@@ -449,14 +479,14 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 ### File Complexity (Cyclomatic Complexity Estimate)
 
-| File | Lines | Complexity | Status |
-|------|-------|------------|--------|
-| mock-platform.ts | 304 | Medium | ✅ Acceptable |
-| cardhost-service.ts | 156 | Low | ✅ Good |
-| controller-client.ts | 203 | Low | ✅ Good |
-| router-service.ts | 209 | Low | ✅ Good |
-| session-relay.ts | 255 | Medium | ⚠️ Could split |
-| cardhost-auth.ts | 220 | Medium | ✅ Acceptable |
+| File                 | Lines | Complexity | Status         |
+| -------------------- | ----- | ---------- | -------------- |
+| mock-platform.ts     | 304   | Medium     | ✅ Acceptable  |
+| cardhost-service.ts  | 156   | Low        | ✅ Good        |
+| controller-client.ts | 203   | Low        | ✅ Good        |
+| router-service.ts    | 209   | Low        | ✅ Good        |
+| session-relay.ts     | 255   | Medium     | ⚠️ Could split |
+| cardhost-auth.ts     | 220   | Medium     | ✅ Acceptable  |
 
 **Largest File**: session-relay.ts (255 lines)  
 **Average File Size**: ~180 lines  
@@ -471,11 +501,12 @@ CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 **Location**: Multiple command files
 
 ```typescript
-(argv: unknown) => runConnect(argv as any)
+(argv: unknown) => runConnect(argv as any);
 //                             ^^^^^^^^^ Unsafe!
 ```
 
 **Better**:
+
 ```typescript
 interface ConnectArgs {
   router?: string;
@@ -483,7 +514,7 @@ interface ConnectArgs {
   token?: string;
   verbose?: boolean;
 }
-(argv: unknown) => runConnect(argv as ConnectArgs)
+(argv: unknown) => runConnect(argv as ConnectArgs);
 ```
 
 **Impact**: Low (yargs provides type safety)  
@@ -523,33 +554,39 @@ await client.disconnect().catch(() => {});
 ### SOLID Principles ✅
 
 **Single Responsibility**: Each class has one clear purpose
+
 - ✅ ControllerClient: Manage controller connection
 - ✅ SessionManager: Handle authentication
 - ✅ RouterService: Coordinate relay
 - ✅ ConfigManager: Manage persistence
 
 **Open/Closed**: Extendable via injection
+
 - ✅ MockPlatform can be injected
 - ✅ Auth managers are injectable
 - ✅ Transport is pluggable
 
 **Liskov Substitution**: Correct inheritance
+
 - ✅ MockPlatform properly extends SmartCardPlatform
 - ✅ All abstract methods implemented
 - ✅ No broken overrides
 
 **Interface Segregation**: Clean interfaces
+
 - ✅ ClientTransport vs ServerTransport
 - ✅ Separate auth interfaces
 - ✅ No fat interfaces
 
 **Dependency Inversion**: Depend on abstractions
+
 - ✅ Depends on jsapdu-interface (abstraction)
 - ✅ Not on concrete implementations
 
 ### Resource Management Patterns ✅
 
 **Proper use of `await using`**:
+
 ```typescript
 // Pattern 1: Platform
 await using platform = new MockSmartCardPlatform();
@@ -572,29 +609,29 @@ await using client = new ControllerClient(config);
 
 ### Section 3.5: Common Requirements ✅
 
-| Requirement | Status | Evidence |
-|-------------|--------|----------|
-| Standalone operation | ✅ | Runtime wrappers exist |
-| Library for testing | ✅ | All libs testable |
-| Runtime wrapper pattern | ✅ | Thin wrappers (94-226 lines) |
+| Requirement             | Status | Evidence                     |
+| ----------------------- | ------ | ---------------------------- |
+| Standalone operation    | ✅     | Runtime wrappers exist       |
+| Library for testing     | ✅     | All libs testable            |
+| Runtime wrapper pattern | ✅     | Thin wrappers (94-226 lines) |
 
 ### Section 6: Testing Strategy ✅
 
-| Requirement | Status | Notes |
-|-------------|--------|-------|
-| Vitest framework | ✅ | All tests use Vitest |
-| No console.log in tests | ✅ | Zero instances found |
-| Not just passing tests | ✅ | All assertions meaningful |
-| Multiple test files | ✅ | 5 test files |
-| Multiple test levels | ✅ | Unit, integration, E2E |
+| Requirement             | Status | Notes                     |
+| ----------------------- | ------ | ------------------------- |
+| Vitest framework        | ✅     | All tests use Vitest      |
+| No console.log in tests | ✅     | Zero instances found      |
+| Not just passing tests  | ✅     | All assertions meaningful |
+| Multiple test files     | ✅     | 5 test files              |
+| Multiple test levels    | ✅     | Unit, integration, E2E    |
 
 ### Section 6.2: Test Levels ⚠️
 
-| Level | Required | Actual | Status |
-|-------|----------|--------|--------|
-| Unit | 10-50 per module | 20 (MockPlatform), 16 (Config), 13 (Auth), 13 (Router) | ⚠️ Gaps |
-| Integration | 5-20 per pattern | 11 (Cardhost+jsapdu) | ⚠️ Need more |
-| E2E | 3-10 per scenario | 17 (full system) | ✅ Good |
+| Level       | Required          | Actual                                                 | Status       |
+| ----------- | ----------------- | ------------------------------------------------------ | ------------ |
+| Unit        | 10-50 per module  | 20 (MockPlatform), 16 (Config), 13 (Auth), 13 (Router) | ⚠️ Gaps      |
+| Integration | 5-20 per pattern  | 11 (Cardhost+jsapdu)                                   | ⚠️ Need more |
+| E2E         | 3-10 per scenario | 17 (full system)                                       | ✅ Good      |
 
 **Overall**: 62/~80 tests = 78% complete
 
@@ -603,18 +640,21 @@ await using client = new ControllerClient(config);
 ## 🚀 Production Readiness Checklist
 
 ### Core Functionality
+
 - ✅ Library architecture
 - ✅ jsapdu-over-ip integration
 - ⚠️ WebSocket RPC (not implemented)
 - ⚠️ Full E2E flow (not tested with real networking)
 
 ### Quality Assurance
+
 - ✅ Type safety (TypeScript strict)
 - ✅ Resource management (await using)
 - ⚠️ Test coverage (60%, need 80%)
 - ✅ No console.log in tests
 
 ### Security
+
 - ✅ Ed25519 authentication
 - ✅ Challenge-response flow
 - ✅ File permissions
@@ -623,6 +663,7 @@ await using client = new ControllerClient(config);
 - ❌ No request size limits
 
 ### Operational
+
 - ✅ Graceful shutdown
 - ⚠️ No structured logging
 - ❌ No metrics/monitoring
@@ -637,22 +678,23 @@ await using client = new ControllerClient(config);
 
 ### Code Quality Score (Detailed)
 
-| Category | Score | Rationale |
-|----------|-------|-----------|
-| Architecture | **A** | Clean, spec-compliant, testable, library-first |
-| Type Safety | **A** | Strict mode, proper types, good generics |
-| Documentation | **A** | Excellent JSDoc, spec refs, examples |
-| Testing | **B** | Good coverage of critical paths, but gaps |
-| Error Handling | **B+** | Good structure, needs logging |
-| Security | **B** | Good foundations, production needs hardening |
-| Code Reuse | **B** | Some duplication (~5.5%), refactor needed |
-| Maintainability | **A-** | Clear structure, but missing tests hurt |
-| Performance | **B+** | Not optimized, but no obvious issues |
-| Extensibility | **A** | Pluggable design, easy to extend |
+| Category        | Score  | Rationale                                      |
+| --------------- | ------ | ---------------------------------------------- |
+| Architecture    | **A**  | Clean, spec-compliant, testable, library-first |
+| Type Safety     | **A**  | Strict mode, proper types, good generics       |
+| Documentation   | **A**  | Excellent JSDoc, spec refs, examples           |
+| Testing         | **B**  | Good coverage of critical paths, but gaps      |
+| Error Handling  | **B+** | Good structure, needs logging                  |
+| Security        | **B**  | Good foundations, production needs hardening   |
+| Code Reuse      | **B**  | Some duplication (~5.5%), refactor needed      |
+| Maintainability | **A-** | Clear structure, but missing tests hurt        |
+| Performance     | **B+** | Not optimized, but no obvious issues           |
+| Extensibility   | **A**  | Pluggable design, easy to extend               |
 
 **Weighted Overall**: **B+ → A-** (87/100)
 
 ### Strengths Summary
+
 1. ✅ Correct architecture (library-first)
 2. ✅ jsapdu-over-ip properly used
 3. ✅ Following jsapdu patterns (`await using`)
@@ -660,6 +702,7 @@ await using client = new ControllerClient(config);
 5. ✅ Good documentation
 
 ### Weaknesses Summary
+
 1. ⚠️ WebSocket RPC not implemented (critical for production)
 2. ⚠️ Test coverage gaps (~22 tests needed)
 3. ⚠️ Code duplication (~133 lines)
@@ -671,6 +714,7 @@ await using client = new ControllerClient(config);
 ## 📝 Recommended Action Plan
 
 ### Phase 1: Critical (Before Production)
+
 1. **Implement WebSocket RPC relay** (Priority 1.1 + 1.2)
    - Add WebSocket handler in Router runtime
    - Complete RPC forwarding in SessionRelay
@@ -684,6 +728,7 @@ await using client = new ControllerClient(config);
    - Estimated: 300-400 lines, 3-4 hours
 
 ### Phase 2: Quality (Before v1.0)
+
 3. **Refactor duplicated code** (Priority 2)
    - Extract canonicalizeJson to shared
    - Extract parseApduHex to shared
@@ -696,6 +741,7 @@ await using client = new ControllerClient(config);
    - Estimated: 1 hour
 
 ### Phase 3: Production Hardening (Before Deployment)
+
 5. **Security improvements**
    - JWT-based bearer tokens
    - Rate limiting
@@ -713,6 +759,7 @@ await using client = new ControllerClient(config);
 ## 🏆 Comparison: Before vs After
 
 ### Original Implementation (WRONG)
+
 - ❌ No jsapdu-over-ip
 - ❌ Monolithic services
 - ❌ Meaningless tests (assertions commented)
@@ -720,6 +767,7 @@ await using client = new ControllerClient(config);
 - **Grade**: F (Fundamentally flawed)
 
 ### Current Implementation (CORRECT)
+
 - ✅ jsapdu-over-ip integrated
 - ✅ Library-first architecture
 - ✅ 28 meaningful tests passing
@@ -727,6 +775,7 @@ await using client = new ControllerClient(config);
 - **Grade**: B+ to A- (Good quality, ready for development)
 
 ### Improvement
+
 - **Architecture**: F → A (100% improvement)
 - **Testability**: F → B+ (massive improvement)
 - **Spec Compliance**: 30% → 90%
@@ -739,12 +788,14 @@ await using client = new ControllerClient(config);
 The rebuilt implementation is **significantly better** than the original and **fundamentally sound**.
 
 **Ready for**:
+
 - ✅ Continued development
 - ✅ Feature additions
 - ✅ Integration testing
 - ✅ Code reviews
 
 **Not yet ready for**:
+
 - ⚠️ Production deployment (need WebSocket RPC)
 - ⚠️ v1.0 release (need more tests)
 - ⚠️ Public release (need security hardening)

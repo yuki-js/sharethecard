@@ -1,12 +1,12 @@
 /**
  * Controller Authentication Manager for Router
  * Handles bearer token validation and session token issuance
- * 
+ *
  * Spec: docs/what-to-make.md Section 4.2.1 - Controller認証フロー
  */
 
-import { generateRandomBase64 } from '@remote-apdu/shared';
-import type { SessionToken } from '@remote-apdu/shared';
+import { generateRandomBase64 } from "@remote-apdu/shared";
+import type { SessionToken } from "@remote-apdu/shared";
 
 export interface ControllerSession {
   sessionId: string;
@@ -29,7 +29,7 @@ export class ControllerAuth {
   async authenticate(bearerToken: string): Promise<SessionToken> {
     // Validate bearer token
     if (!this.validateBearerToken(bearerToken)) {
-      throw new Error('Invalid bearer token');
+      throw new Error("Invalid bearer token");
     }
 
     // Generate session token
@@ -40,20 +40,20 @@ export class ControllerAuth {
       sessionId,
       bearerToken,
       expiresAt,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     this.sessions.set(sessionId, session);
 
     return {
       token: sessionId,
-      expiresAt: expiresAt.toISOString()
+      expiresAt: expiresAt.toISOString(),
     };
   }
 
   /**
    * Validate bearer token format and content
-   * 
+   *
    * Current implementation: basic length check
    * Production: JWT verification, database lookup, etc.
    */
@@ -67,7 +67,7 @@ export class ControllerAuth {
    */
   validateSession(sessionToken: string): ControllerSession | null {
     const session = this.sessions.get(sessionToken);
-    
+
     if (!session) {
       return null;
     }

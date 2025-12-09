@@ -1,12 +1,12 @@
 /**
  * Session Relay Manager for Router
  * Bridges Controller and Cardhost connections for APDU relay
- * 
+ *
  * Spec: docs/what-to-make.md Section 3.3.3 - 通信中継
  */
 
-import { generateRandomBase64 } from '@remote-apdu/shared';
-import type { RpcRequest, RpcResponse } from '@aokiapp/jsapdu-over-ip';
+import { generateRandomBase64 } from "@remote-apdu/shared";
+import type { RpcRequest, RpcResponse } from "@aokiapp/jsapdu-over-ip";
 
 export interface RelaySession {
   relayId: string;
@@ -18,7 +18,7 @@ export interface RelaySession {
 
 export interface ConnectionInfo {
   id: string;
-  role: 'controller' | 'cardhost';
+  role: "controller" | "cardhost";
   identifier: string; // session token for controller, uuid for cardhost
   relayId?: string;
   onMessage?: (data: unknown) => void;
@@ -36,7 +36,10 @@ export class SessionRelay {
   private initialized = false;
 
   // Pending RpcResponse resolvers keyed by `${cardhostUuid}:${requestId}`
-  private pendingResponses: Map<string, { resolve: (resp: RpcResponse) => void; timer: NodeJS.Timeout; }> = new Map();
+  private pendingResponses: Map<
+    string,
+    { resolve: (resp: RpcResponse) => void; timer: NodeJS.Timeout }
+  > = new Map();
 
   private makePendingKey(cardhostUuid: string, id: string): string {
     return `${cardhostUuid}:${id}`;
@@ -47,7 +50,7 @@ export class SessionRelay {
    */
   async initialize(): Promise<void> {
     if (this.initialized) {
-      throw new Error('Session relay already initialized');
+      throw new Error("Session relay already initialized");
     }
 
     this.initialized = true;
@@ -72,12 +75,9 @@ export class SessionRelay {
   /**
    * Create relay session linking Controller and Cardhost
    */
-  createSession(
-    controllerSessionToken: string,
-    cardhostUuid: string
-  ): string {
+  createSession(controllerSessionToken: string, cardhostUuid: string): string {
     if (!this.initialized) {
-      throw new Error('Session relay not initialized');
+      throw new Error("Session relay not initialized");
     }
 
     const relayId = generateRandomBase64(16);
@@ -88,7 +88,7 @@ export class SessionRelay {
       controllerSessionToken,
       cardhostUuid,
       createdAt: now,
-      lastActivityAt: now
+      lastActivityAt: now,
     };
 
     this.relaySessions.set(relayId, session);
@@ -108,7 +108,7 @@ export class SessionRelay {
    */
   registerControllerConnection(
     sessionToken: string,
-    connectionInfo: ConnectionInfo
+    connectionInfo: ConnectionInfo,
   ): void {
     this.controllerConnections.set(sessionToken, connectionInfo);
   }
@@ -118,7 +118,7 @@ export class SessionRelay {
    */
   registerCardhostConnection(
     cardhostUuid: string,
-    connectionInfo: ConnectionInfo
+    connectionInfo: ConnectionInfo,
   ): void {
     this.cardhostConnections.set(cardhostUuid, connectionInfo);
   }
@@ -142,7 +142,7 @@ export class SessionRelay {
    */
   async relayToCardhost(
     controllerSessionToken: string,
-    request: RpcRequest
+    request: RpcRequest,
   ): Promise<RpcResponse> {
     // Find relay session
     let relaySession: RelaySession | undefined;
@@ -157,26 +157,28 @@ export class SessionRelay {
       return {
         id: request.id,
         error: {
-          code: 'NO_RELAY_SESSION',
-          message: 'No relay session found for this controller'
-        }
+          code: "NO_RELAY_SESSION",
+          message: "No relay session found for this controller",
+        },
       };
     }
 
     // Get Cardhost connection
-    const cardhostConn = this.cardhostConnections.get(relaySession.cardhostUuid);
+    const cardhostConn = this.cardhostConnections.get(
+      relaySession.cardhostUuid,
+    );
     if (!cardhostConn?.send) {
       return {
         id: request.id,
         error: {
-          code: 'CARDHOST_OFFLINE',
-          message: 'Cardhost is not connected'
-        }
+          code: "CARDHOST_OFFLINE",
+          message: "Cardhost is not connected",
+        },
       };
     }
 
     // Forward request to Cardhost via WebSocket and await response
-    const envelope = { type: 'rpc-request', payload: request };
+    const envelope = { type: "rpc-request", payload: request };
     const key = this.makePendingKey(relaySession.cardhostUuid, request.id);
 
     // Prevent accidental duplicate request IDs
@@ -184,9 +186,9 @@ export class SessionRelay {
       return {
         id: request.id,
         error: {
-          code: 'DUPLICATE_REQUEST_ID',
-          message: 'Duplicate request id already pending'
-        }
+          code: "DUPLICATE_REQUEST_ID",
+          message: "Duplicate request id already pending",
+        },
       };
     }
 
@@ -196,9 +198,9 @@ export class SessionRelay {
         resolve({
           id: request.id,
           error: {
-            code: 'TIMEOUT',
-            message: 'RPC relay timeout'
-          }
+            code: "TIMEOUT",
+            message: "RPC relay timeout",
+          },
         });
       }, 30_000);
 
@@ -214,9 +216,9 @@ export class SessionRelay {
         resolve({
           id: request.id,
           error: {
-            code: 'SEND_FAILED',
-            message: 'Failed to send to cardhost'
-          }
+            code: "SEND_FAILED",
+            message: "Failed to send to cardhost",
+          },
         });
       }
     });
@@ -227,7 +229,7 @@ export class SessionRelay {
    */
   async relayToController(
     cardhostUuid: string,
-    response: RpcResponse
+    response: RpcResponse,
   ): Promise<void> {
     // Find relay session
     let relaySession: RelaySession | undefined;
@@ -239,16 +241,16 @@ export class SessionRelay {
     }
 
     if (!relaySession) {
-      throw new Error('No relay session found for this cardhost');
+      throw new Error("No relay session found for this cardhost");
     }
 
     // Get Controller connection
     const controllerConn = this.controllerConnections.get(
-      relaySession.controllerSessionToken
+      relaySession.controllerSessionToken,
     );
-    
+
     if (!controllerConn?.send) {
-      throw new Error('Controller not connected');
+      throw new Error("Controller not connected");
     }
 
     // Forward response to Controller
@@ -291,7 +293,7 @@ export class SessionRelay {
   getConnectionCounts(): { controllers: number; cardhosts: number } {
     return {
       controllers: this.controllerConnections.size,
-      cardhosts: this.cardhostConnections.size
+      cardhosts: this.cardhostConnections.size,
     };
   }
 
@@ -301,10 +303,14 @@ export class SessionRelay {
    */
   public handleCardhostMessage(cardhostUuid: string, data: unknown): void {
     try {
-      const raw = data instanceof Buffer ? data.toString('utf8') : String(data);
+      const raw = data instanceof Buffer ? data.toString("utf8") : String(data);
       const message = JSON.parse(raw);
 
-      if (message?.type === 'rpc-response' && message.payload && typeof message.payload.id === 'string') {
+      if (
+        message?.type === "rpc-response" &&
+        message.payload &&
+        typeof message.payload.id === "string"
+      ) {
         const resp = message.payload as RpcResponse;
         const key = `${cardhostUuid}:${resp.id}`;
         const pending = this.pendingResponses.get(key);

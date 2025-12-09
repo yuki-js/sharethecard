@@ -9,7 +9,7 @@
  * Remove whitespace and normalize the hex string.
  */
 export function cleanHex(input: string): string {
-  return input.replace(/\s+/g, '');
+  return input.replace(/\s+/g, "");
 }
 
 /**
@@ -26,7 +26,7 @@ export function isValidEvenHex(hex: string): boolean {
 export function parseHexToBytes(input: string): Uint8Array<ArrayBuffer> {
   const hex = cleanHex(input);
   if (!isValidEvenHex(hex)) {
-    throw new Error('Invalid hex format (must be even-length hex)');
+    throw new Error("Invalid hex format (must be even-length hex)");
   }
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
@@ -42,7 +42,9 @@ export function parseHexToBytes(input: string): Uint8Array<ArrayBuffer> {
 export function parseApduHex(input: string): Uint8Array<ArrayBuffer> {
   const hex = cleanHex(input);
   if (!isValidEvenHex(hex) || hex.length < 8) {
-    throw new Error('Invalid APDU hex format (even-length hex, at least 4 bytes required)');
+    throw new Error(
+      "Invalid APDU hex format (even-length hex, at least 4 bytes required)",
+    );
   }
   return parseHexToBytes(hex);
 }

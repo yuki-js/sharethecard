@@ -1,6 +1,6 @@
-import chalk from 'chalk';
-import { ControllerClient, CommandApdu } from '../lib/index.js';
-import { parseApduHex } from '@remote-apdu/shared';
+import chalk from "chalk";
+import { ControllerClient, CommandApdu } from "../lib/index.js";
+import { parseApduHex } from "@remote-apdu/shared";
 
 export type SendCommandArgs = {
   router?: string;
@@ -24,30 +24,36 @@ export async function run(argv: SendCommandArgs): Promise<void> {
   }
 
   if (!router || !cardhost || !token) {
-    console.error(chalk.red('Missing required options: --router, --cardhost, --token'));
+    console.error(
+      chalk.red("Missing required options: --router, --cardhost, --token"),
+    );
     process.exitCode = 2;
     return;
   }
- // Parse APDU hex string
- let bytes: Uint8Array<ArrayBuffer>;
- try {
-   bytes = parseApduHex(apdu);
- } catch {
-   console.error(chalk.red('Invalid APDU hex format (must be even-length hex, at least 4 bytes)'));
-   process.exitCode = 2;
-   return;
- }
+  // Parse APDU hex string
+  let bytes: Uint8Array<ArrayBuffer>;
+  try {
+    bytes = parseApduHex(apdu);
+  } catch {
+    console.error(
+      chalk.red(
+        "Invalid APDU hex format (must be even-length hex, at least 4 bytes)",
+      ),
+    );
+    process.exitCode = 2;
+    return;
+  }
 
   try {
     await using client = new ControllerClient({
       routerUrl: router,
       token,
       cardhostUuid: cardhost,
-      verbose
+      verbose,
     });
 
     if (verbose) {
-      console.info(chalk.gray('[verbose] Connecting...'));
+      console.info(chalk.gray("[verbose] Connecting..."));
     }
 
     await client.connect(cardhost);
@@ -64,15 +70,18 @@ export async function run(argv: SendCommandArgs): Promise<void> {
 
     // Display response
     if (response.data.length > 0) {
-      const dataHex = Array.from(response.data, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+      const dataHex = Array.from(response.data, (b) =>
+        b.toString(16).padStart(2, "0"),
+      )
+        .join("")
+        .toUpperCase();
       console.info(chalk.green(`Data: ${dataHex}`));
     }
-    
-    const sw = response.sw.toString(16).padStart(4, '0').toUpperCase();
+
+    const sw = response.sw.toString(16).padStart(4, "0").toUpperCase();
     console.info(chalk.green(`SW: ${sw}`));
 
     // Cleanup handled by await using
-
   } catch (error) {
     console.error(chalk.red(`Send failed: ${(error as Error).message}`));
     process.exitCode = 1;

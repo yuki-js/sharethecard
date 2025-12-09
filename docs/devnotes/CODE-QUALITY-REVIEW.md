@@ -19,6 +19,7 @@
 ## ✅ Strengths
 
 ### 1. Architecture (Excellent)
+
 - ✅ **Library-first design** correctly implemented
 - ✅ **Separation of concerns**: lib/ vs runtime/
 - ✅ **jsapdu-over-ip integration** as required
@@ -26,18 +27,21 @@
 - ✅ **Thin runtime wrappers** (94-226 lines)
 
 ### 2. Resource Management (Excellent)
+
 - ✅ **`await using` support** throughout
 - ✅ **Proper cleanup** in all components
 - ✅ **No resource leaks** in tests
 - ✅ **Following jsapdu patterns** correctly
 
 ### 3. Testing (Very Good)
+
 - ✅ **28 meaningful tests** covering critical paths
 - ✅ **No console.log** in tests (spec requirement)
 - ✅ **Real assertions** (not commented out)
 - ✅ **Tests demonstrate patterns** (educational value)
 
 ### 4. Type Safety (Good)
+
 - ✅ **TypeScript strict mode**
 - ✅ **Explicit interfaces** for all public APIs
 - ✅ **Type guards** in transports
@@ -58,6 +62,7 @@
 **Impact**: Cardhost cannot actually connect in practice (only works in unit tests)
 
 **Code**:
+
 ```typescript
 // Cardhost tries to connect to:
 this.ws = new WebSocket(`${wsUrl}/api/jsapdu/ws`, ...)
@@ -71,7 +76,8 @@ this.ws = new WebSocket(`${wsUrl}/api/jsapdu/ws`, ...)
 
 **Location**: [`packages/router/src/lib/relay/session-relay.ts:174-180`](../../packages/router/src/lib/relay/session-relay.ts:174-180)
 
-**Problem**: 
+**Problem**:
+
 ```typescript
 // Forward request to Cardhost
 // In a real implementation with WebSocket, this would use the connection's send method
@@ -79,9 +85,9 @@ this.ws = new WebSocket(`${wsUrl}/api/jsapdu/ws`, ...)
 return {
   id: request.id,
   error: {
-    code: 'NOT_IMPLEMENTED',
-    message: 'RPC relay not yet implemented'
-  }
+    code: "NOT_IMPLEMENTED",
+    message: "RPC relay not yet implemented",
+  },
 };
 ```
 
@@ -96,12 +102,14 @@ return {
 #### 2.1. Duplicated `canonicalizeJson` Function
 
 **Locations**:
+
 - [`packages/cardhost/src/lib/auth-manager.ts:113-133`](../../packages/cardhost/src/lib/auth-manager.ts:113-133)
 - [`packages/router/src/lib/auth/cardhost-auth.ts:152-172`](../../packages/router/src/lib/auth/cardhost-auth.ts:152-172)
 
 **Problem**: Exact same implementation in two places
 
 **Fix**: Move to shared utilities
+
 ```typescript
 // packages/shared/src/utils/canonical-json.ts
 export function canonicalizeJson(input: unknown): Uint8Array {
@@ -124,6 +132,7 @@ export function canonicalizeJson(input: unknown): Uint8Array {
 **File**: [`packages/controller/src/lib/session-manager.ts`](../../packages/controller/src/lib/session-manager.ts)
 
 **Missing tests**:
+
 - Bearer token caching
 - Session expiration handling
 - Cardhost listing
@@ -134,6 +143,7 @@ export function canonicalizeJson(input: unknown): Uint8Array {
 **File**: [`packages/cardhost/src/lib/auth-manager.ts`](../../packages/cardhost/src/lib/auth-manager.ts)
 
 **Missing tests**:
+
 - Challenge signing
 - Authentication flow
 - Error handling
@@ -141,10 +151,12 @@ export function canonicalizeJson(input: unknown): Uint8Array {
 #### 3.3. Transport Layer - No tests
 
 **Files**:
+
 - [`packages/controller/src/lib/router-transport.ts`](../../packages/controller/src/lib/router-transport.ts)
 - [`packages/cardhost/src/lib/router-transport.ts`](../../packages/cardhost/src/lib/router-transport.ts)
 
 **Missing tests**:
+
 - RPC request/response handling
 - Type validation
 - Connection management
@@ -170,7 +182,7 @@ private readonly CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 **Location**: [`packages/cardhost/src/lib/cardhost-service.ts:81`](../../packages/cardhost/src/lib/cardhost-service.ts:81)
 
 ```typescript
-const config = await this.configManager.loadOrCreate(this.authManager['routerUrl']);
+const config = await this.configManager.loadOrCreate(this.authManager["routerUrl"]);
 //                                                     ^^^ Using bracket notation for private property
 ```
 
@@ -179,6 +191,7 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 #### 4.3. Console.error in Production Code
 
 **Locations**:
+
 - [`packages/router/src/lib/auth/cardhost-auth.ts:144`](../../packages/router/src/lib/auth/cardhost-auth.ts:144)
 - [`packages/cardhost/src/lib/router-transport.ts:138`](../../packages/cardhost/src/lib/router-transport.ts:138)
 
@@ -189,22 +202,25 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 ## 📊 Metrics
 
 ### Code Size (Good - Kept Thin)
-| Component | Library | Runtime | Total |
-|-----------|---------|---------|-------|
+
+| Component  | Library    | Runtime    | Total      |
+| ---------- | ---------- | ---------- | ---------- |
 | Controller | ~400 lines | ~250 lines | ~650 lines |
-| Cardhost | ~700 lines | ~108 lines | ~808 lines |
-| Router | ~550 lines | ~226 lines | ~776 lines |
-| Shared | ~100 lines | N/A | ~100 lines |
+| Cardhost   | ~700 lines | ~108 lines | ~808 lines |
+| Router     | ~550 lines | ~226 lines | ~776 lines |
+| Shared     | ~100 lines | N/A        | ~100 lines |
 
 ### Test Coverage
-| Type | Count | Coverage |
-|------|-------|----------|
-| Unit Tests | 11 | MockPlatform, Config, Auth, Router |
-| Integration Tests | 11 | Cardhost+jsapdu integration |
-| E2E Tests | 17 | Complete system flows |
-| **Total** | **28** | **Key paths covered** |
+
+| Type              | Count  | Coverage                           |
+| ----------------- | ------ | ---------------------------------- |
+| Unit Tests        | 11     | MockPlatform, Config, Auth, Router |
+| Integration Tests | 11     | Cardhost+jsapdu integration        |
+| E2E Tests         | 17     | Complete system flows              |
+| **Total**         | **28** | **Key paths covered**              |
 
 ### Missing Test Coverage (Need ~20 more tests)
+
 - ❌ SessionManager (Controller) - 0 tests
 - ❌ AuthManager (Cardhost) - 0 tests
 - ❌ Transport layers - 0 tests
@@ -273,6 +289,7 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 ### Best Practices Followed
 
 ✅ **SOLID Principles**
+
 - Single Responsibility: Each class has one clear purpose
 - Open/Closed: Extendable via dependency injection
 - Liskov Substitution: MockPlatform correctly implements SmartCardPlatform
@@ -280,16 +297,19 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 - Dependency Inversion: Depend on abstractions (jsapdu-interface)
 
 ✅ **Error Handling**
+
 - Throw descriptive errors
 - Async errors properly propagated
 - Try-catch where appropriate
 
 ✅ **Documentation**
+
 - JSDoc on all public methods
 - Spec references in file headers
 - Usage examples in class docs
 
 ✅ **TypeScript Best Practices**
+
 - Strict mode enabled
 - No any types (except unknown with type guards)
 - Proper null/undefined handling
@@ -333,18 +353,21 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 ## 📋 Improvement Roadmap
 
 ### Phase 1: Complete Core Functionality (High Priority)
+
 1. Implement WebSocket relay in Router
 2. Complete RPC forwarding
 3. Test actual Controller → Router → Cardhost flow
 4. Add missing unit tests
 
 ### Phase 2: Production Readiness (Medium Priority)
+
 5. Refactor duplicated code
 6. Add proper logging
 7. Implement reconnection logic
 8. Add monitoring
 
 ### Phase 3: Enhancement (Low Priority)
+
 9. Performance optimization
 10. Advanced features
 11. Documentation improvements
@@ -372,6 +395,7 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 ## 🔐 Security Review
 
 ### Good Practices ✅
+
 - ✅ Ed25519 for signatures (modern, secure)
 - ✅ Challenge-response auth (prevents replay)
 - ✅ Session token expiration (1 hour)
@@ -379,6 +403,7 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 - ✅ Config file permissions (0o600)
 
 ### Concerns ⚠️
+
 - ⚠️ Bearer token validation is minimal (length check only)
 - ⚠️ No rate limiting
 - ⚠️ No request size limits
@@ -390,16 +415,16 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 
 ## 📈 Code Quality Score
 
-| Category | Score | Notes |
-|----------|-------|-------|
-| Architecture | A | Clean, spec-compliant, testable |
-| Type Safety | A | Strict mode, proper types |
-| Testing | B+ | Good coverage, but gaps remain |
-| Documentation | A | Clear JSDoc, good examples |
-| Error Handling | B | Good structure, needs logging |
-| Security | B | Good foundations, needs hardening |
-| Performance | B | Not optimized, but not problematic |
-| Maintainability | A | Clear structure, easy to extend |
+| Category        | Score | Notes                              |
+| --------------- | ----- | ---------------------------------- |
+| Architecture    | A     | Clean, spec-compliant, testable    |
+| Type Safety     | A     | Strict mode, proper types          |
+| Testing         | B+    | Good coverage, but gaps remain     |
+| Documentation   | A     | Clear JSDoc, good examples         |
+| Error Handling  | B     | Good structure, needs logging      |
+| Security        | B     | Good foundations, needs hardening  |
+| Performance     | B     | Not optimized, but not problematic |
+| Maintainability | A     | Clear structure, easy to extend    |
 
 **Overall**: B+ (Good quality, ready for continued development)
 
@@ -410,18 +435,21 @@ const config = await this.configManager.loadOrCreate(this.authManager['routerUrl
 The rebuilt implementation is **fundamentally sound** and **significantly better** than the original:
 
 **vs. Original Implementation**:
+
 - ✅ Uses jsapdu-over-ip (original: custom crypto)
 - ✅ Library-first (original: monolithic)
 - ✅ Meaningful tests (original: commented assertions)
 - ✅ Proper patterns (original: no `await using`)
 
 **Production Readiness**: 65%
+
 - Core architecture: ✅ Ready
 - Unit tests: ⚠️ 70% complete (need ~20 more)
 - Integration: ⚠️ WebSocket relay incomplete
 - Security: ⚠️ Needs hardening
 
-**Recommendation**: 
+**Recommendation**:
+
 1. Complete Priority 1 issues (WebSocket + RPC relay)
 2. Add missing tests
 3. Then production-ready

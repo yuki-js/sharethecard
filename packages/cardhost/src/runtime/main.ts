@@ -2,28 +2,28 @@
 /**
  * Cardhost Runtime - Standalone Service
  * Thin wrapper around CardhostService library
- * 
+ *
  * This is the "下駄" (runtime wrapper) that makes the library work as standalone service
  * Spec: docs/what-to-make.md Section 3.5 - 共通項
  */
 
-import { CardhostService, MockSmartCardPlatform } from '../lib/index.js';
+import { CardhostService, MockSmartCardPlatform } from "../lib/index.js";
 
 /**
  * Parse command line arguments
  */
 function parseArgs(): { routerUrl: string; useMock: boolean } {
   const args = process.argv.slice(2);
-  let routerUrl = process.env.ROUTER_URL ?? 'http://localhost:3000';
-  let useMock = process.env.USE_MOCK === 'true';
+  let routerUrl = process.env.ROUTER_URL ?? "http://localhost:3000";
+  let useMock = process.env.USE_MOCK === "true";
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--router' && args[i + 1]) {
+    if (args[i] === "--router" && args[i + 1]) {
       routerUrl = args[i + 1];
       i++;
-    } else if (args[i] === '--mock') {
+    } else if (args[i] === "--mock") {
       useMock = true;
-    } else if (args[i] === '--help' || args[i] === '-h') {
+    } else if (args[i] === "--help" || args[i] === "-h") {
       console.log(`
 Cardhost Service - Remote APDU Communication System
 
@@ -61,16 +61,16 @@ The service will:
 async function main(): Promise<void> {
   const { routerUrl, useMock } = parseArgs();
 
-  console.log('Starting Cardhost Service...');
+  console.log("Starting Cardhost Service...");
   console.log(`Router URL: ${routerUrl}`);
-  console.log(`Platform: ${useMock ? 'Mock' : 'PC/SC'}`);
+  console.log(`Platform: ${useMock ? "Mock" : "PC/SC"}`);
 
   // Create service with optional mock platform
   const platform = useMock ? new MockSmartCardPlatform() : undefined;
-  
+
   const service = new CardhostService({
     routerUrl,
-    platform
+    platform,
   });
 
   // Connect to Router
@@ -80,20 +80,20 @@ async function main(): Promise<void> {
     console.log(`✓ Cardhost UUID: ${service.getUuid()}`);
     console.log(`✓ Ready to serve APDU requests`);
   } catch (error) {
-    console.error('Failed to connect:', (error as Error).message);
+    console.error("Failed to connect:", (error as Error).message);
     process.exit(1);
   }
 
   // Graceful shutdown
-  process.on('SIGINT', async () => {
-    console.log('\nShutting down Cardhost...');
+  process.on("SIGINT", async () => {
+    console.log("\nShutting down Cardhost...");
     await service.disconnect();
-    console.log('✓ Disconnected');
+    console.log("✓ Disconnected");
     process.exit(0);
   });
 
-  process.on('SIGTERM', async () => {
-    console.log('\nShutting down Cardhost...');
+  process.on("SIGTERM", async () => {
+    console.log("\nShutting down Cardhost...");
     await service.disconnect();
     process.exit(0);
   });
@@ -103,6 +103,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error('Fatal error:', error);
+  console.error("Fatal error:", error);
   process.exit(1);
 });

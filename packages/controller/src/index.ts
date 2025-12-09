@@ -3,4 +3,4 @@
  * Exports library API for programmatic use
  */
 
-export * from './lib/index.js';
+export * from "./lib/index.js";

@@ -1,65 +1,65 @@
 /**
  * Unit tests for MockSmartCardPlatform
- * 
+ *
  * Validates that mock implementation follows jsapdu-interface patterns correctly
  * Tests resource management with await using pattern
- * 
+ *
  * Spec: docs/what-to-make.md Section 6.2.1 - ユニットテスト
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { MockSmartCardPlatform } from '../src/lib/mock-platform.js';
-import { CommandApdu } from '@aokiapp/jsapdu-interface';
+import { describe, it, expect, beforeEach } from "vitest";
+import { MockSmartCardPlatform } from "../src/lib/mock-platform.js";
+import { CommandApdu } from "@aokiapp/jsapdu-interface";
 
-describe('MockSmartCardPlatform', () => {
-  describe('Initialization', () => {
-    it('should initialize successfully', async () => {
+describe("MockSmartCardPlatform", () => {
+  describe("Initialization", () => {
+    it("should initialize successfully", async () => {
       const platform = new MockSmartCardPlatform();
-      
+
       expect(platform.isInitialized()).toBe(false);
-      
+
       await platform.init();
-      
+
       expect(platform.isInitialized()).toBe(true);
     });
 
-    it('should throw error when initializing twice without force', async () => {
+    it("should throw error when initializing twice without force", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
-      await expect(platform.init()).rejects.toThrow('already initialized');
+      await expect(platform.init()).rejects.toThrow("already initialized");
     });
 
-    it('should allow re-initialization with force flag', async () => {
+    it("should allow re-initialization with force flag", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
       await platform.init(true); // Should not throw
-      
+
       expect(platform.isInitialized()).toBe(true);
     });
 
-    it('should create default mock device on init', async () => {
+    it("should create default mock device on init", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
       const devices = await platform.getDeviceInfo();
-      
+
       expect(devices).toHaveLength(1);
-      expect(devices[0].id).toBe('mock-device-1');
+      expect(devices[0].id).toBe("mock-device-1");
       expect(devices[0].supportsApdu).toBe(true);
     });
   });
 
-  describe('Resource Management with await using', () => {
-    it('should support await using pattern', async () => {
+  describe("Resource Management with await using", () => {
+    it("should support await using pattern", async () => {
       await using platform = new MockSmartCardPlatform();
       await platform.init();
-      
+
       expect(platform.isInitialized()).toBe(true);
       // Cleanup happens automatically
     });
 
-    it('should cleanup on scope exit', async () => {
+    it("should cleanup on scope exit", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -73,7 +73,7 @@ describe('MockSmartCardPlatform', () => {
     });
   });
 
-  describe('Device Operations', () => {
+  describe("Device Operations", () => {
     let platform: MockSmartCardPlatform;
 
     beforeEach(async () => {
@@ -81,7 +81,7 @@ describe('MockSmartCardPlatform', () => {
       await platform.init();
     });
 
-    it('should acquire device by ID', async () => {
+    it("should acquire device by ID", async () => {
       const devices = await platform.getDeviceInfo();
       const device = await platform.acquireDevice(devices[0].id);
 
@@ -89,23 +89,23 @@ describe('MockSmartCardPlatform', () => {
       expect(device.getDeviceInfo().id).toBe(devices[0].id);
     });
 
-    it('should throw error for non-existent device', async () => {
-      await expect(
-        platform.acquireDevice('non-existent-id')
-      ).rejects.toThrow('Device not found');
+    it("should throw error for non-existent device", async () => {
+      await expect(platform.acquireDevice("non-existent-id")).rejects.toThrow(
+        "Device not found",
+      );
     });
 
-    it('should support multiple mock devices', async () => {
-      platform.addMockDevice('mock-device-2', 'Second Reader');
+    it("should support multiple mock devices", async () => {
+      platform.addMockDevice("mock-device-2", "Second Reader");
 
       const devices = await platform.getDeviceInfo();
-      
+
       expect(devices).toHaveLength(2);
-      expect(devices[1].id).toBe('mock-device-2');
+      expect(devices[1].id).toBe("mock-device-2");
     });
   });
 
-  describe('Card Session Operations', () => {
+  describe("Card Session Operations", () => {
     let platform: MockSmartCardPlatform;
 
     beforeEach(async () => {
@@ -113,24 +113,24 @@ describe('MockSmartCardPlatform', () => {
       await platform.init();
     });
 
-    it('should start card session with await using', async () => {
+    it("should start card session with await using", async () => {
       const devices = await platform.getDeviceInfo();
       await using device = await platform.acquireDevice(devices[0].id);
       await using card = await device.startSession();
 
       expect(card).toBeDefined();
-      
+
       const atr = await card.getAtr();
       expect(atr).toBeInstanceOf(Uint8Array);
       expect(atr.length).toBeGreaterThan(0);
     });
 
-    it('should transmit APDU command and return success', async () => {
+    it("should transmit APDU command and return success", async () => {
       const devices = await platform.getDeviceInfo();
       await using device = await platform.acquireDevice(devices[0].id);
       await using card = await device.startSession();
 
-      const command = new CommandApdu(0x00, 0xA4, 0x04, 0x00, null, null);
+      const command = new CommandApdu(0x00, 0xa4, 0x04, 0x00, null, null);
       const response = await card.transmit(command);
 
       expect(response.sw1).toBe(0x90);
@@ -138,12 +138,12 @@ describe('MockSmartCardPlatform', () => {
       expect(response.sw).toBe(0x9000);
     });
 
-    it('should transmit raw APDU bytes', async () => {
+    it("should transmit raw APDU bytes", async () => {
       const devices = await platform.getDeviceInfo();
       await using device = await platform.acquireDevice(devices[0].id);
       await using card = await device.startSession();
 
-      const rawCommand = new Uint8Array([0x00, 0xA4, 0x04, 0x00]);
+      const rawCommand = new Uint8Array([0x00, 0xa4, 0x04, 0x00]);
       const response = await card.transmit(rawCommand);
 
       expect(response).toBeInstanceOf(Uint8Array);
@@ -153,15 +153,15 @@ describe('MockSmartCardPlatform', () => {
     });
   });
 
-  describe('Custom Response Configuration', () => {
-    it('should return configured response for specific command', async () => {
+  describe("Custom Response Configuration", () => {
+    it("should return configured response for specific command", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
-      const commandHex = '00A4040008A000000003000000';
+      const commandHex = "00A4040008A000000003000000";
       const customResponse = new Uint8Array([0x61, 0x15]); // More data available
-      
-      platform.setDeviceResponse('mock-device-1', commandHex, customResponse);
+
+      platform.setDeviceResponse("mock-device-1", commandHex, customResponse);
 
       const devices = await platform.getDeviceInfo();
       await using device = await platform.acquireDevice(devices[0].id);
@@ -180,8 +180,8 @@ describe('MockSmartCardPlatform', () => {
     });
   });
 
-  describe('Card Presence Simulation', () => {
-    it('should detect card as present by default', async () => {
+  describe("Card Presence Simulation", () => {
+    it("should detect card as present by default", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -192,7 +192,7 @@ describe('MockSmartCardPlatform', () => {
       expect(isPresent).toBe(true);
     });
 
-    it('should allow controlling card presence', async () => {
+    it("should allow controlling card presence", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -205,7 +205,7 @@ describe('MockSmartCardPlatform', () => {
       expect(isPresent).toBe(false);
     });
 
-    it('should wait for card presence', async () => {
+    it("should wait for card presence", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -213,22 +213,18 @@ describe('MockSmartCardPlatform', () => {
       const device = await platform.acquireDevice(devices[0].id);
 
       // Card already present - should resolve immediately
-      await expect(
-        device.waitForCardPresence(1000)
-      ).resolves.toBeUndefined();
+      await expect(device.waitForCardPresence(1000)).resolves.toBeUndefined();
     });
   });
 
-  describe('Error Handling', () => {
-    it('should throw error when operating on uninitialized platform', async () => {
+  describe("Error Handling", () => {
+    it("should throw error when operating on uninitialized platform", async () => {
       const platform = new MockSmartCardPlatform();
 
-      await expect(
-        platform.getDeviceInfo()
-      ).rejects.toThrow('not initialized');
+      await expect(platform.getDeviceInfo()).rejects.toThrow("not initialized");
     });
 
-    it('should throw error when starting session twice', async () => {
+    it("should throw error when starting session twice", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -237,12 +233,10 @@ describe('MockSmartCardPlatform', () => {
 
       await device.startSession();
 
-      await expect(
-        device.startSession()
-      ).rejects.toThrow('already active');
+      await expect(device.startSession()).rejects.toThrow("already active");
     });
 
-    it('should throw error when transmitting on released card', async () => {
+    it("should throw error when transmitting on released card", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -252,16 +246,14 @@ describe('MockSmartCardPlatform', () => {
 
       await card.release();
 
-      const command = new CommandApdu(0x00, 0xA4, 0x04, 0x00, null, null);
-      
-      await expect(
-        card.transmit(command)
-      ).rejects.toThrow('released');
+      const command = new CommandApdu(0x00, 0xa4, 0x04, 0x00, null, null);
+
+      await expect(card.transmit(command)).rejects.toThrow("released");
     });
   });
 
-  describe('Release and Cleanup', () => {
-    it('should release platform successfully', async () => {
+  describe("Release and Cleanup", () => {
+    it("should release platform successfully", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -270,7 +262,7 @@ describe('MockSmartCardPlatform', () => {
       expect(platform.isInitialized()).toBe(false);
     });
 
-    it('should release all devices on platform release', async () => {
+    it("should release all devices on platform release", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
@@ -281,9 +273,7 @@ describe('MockSmartCardPlatform', () => {
       await platform.release();
 
       // Further operations should fail
-      await expect(
-        platform.getDeviceInfo()
-      ).rejects.toThrow();
+      await expect(platform.getDeviceInfo()).rejects.toThrow();
     });
   });
 });

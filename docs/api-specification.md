@@ -17,6 +17,7 @@ List all registered Cardhosts and their connection status.
 **Authentication**: Bearer token (optional)
 
 **Response** (200 OK):
+
 ```json
 [
   {
@@ -31,6 +32,7 @@ List all registered Cardhosts and their connection status.
 ```
 
 **Error Responses**:
+
 - `401 Unauthorized`: Invalid or missing bearer token
 - `500 Internal Server Error`: Server error
 
@@ -43,6 +45,7 @@ List all registered Cardhosts and their connection status.
 Authenticate Controller with bearer token and issue session token.
 
 **Request**:
+
 ```http
 POST /controller/connect HTTP/1.1
 Authorization: Bearer <bearer-token>
@@ -50,6 +53,7 @@ Content-Type: application/json
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "token": "sess_abcdef1234567890",
@@ -58,11 +62,13 @@ Content-Type: application/json
 ```
 
 **Error Responses**:
+
 - `400 Bad Request`: Missing Authorization header
 - `401 Unauthorized`: Invalid bearer token or insufficient length (< 10 chars)
 - `500 Internal Server Error`: Server error
 
 **Notes**:
+
 - Bearer tokens must be at least 10 characters long
 - Session tokens expire after 1 hour
 - Session token should be used in subsequent WebSocket and session requests
@@ -76,6 +82,7 @@ Content-Type: application/json
 Request authentication challenge from Router.
 
 **Request**:
+
 ```json
 {
   "uuid": "550e8400-e29b-41d4-a716-446655440000",
@@ -84,6 +91,7 @@ Request authentication challenge from Router.
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "challenge": "<random-base64-challenge>"
@@ -91,10 +99,12 @@ Request authentication challenge from Router.
 ```
 
 **Error Responses**:
+
 - `400 Bad Request`: Missing uuid or publicKey
 - `500 Internal Server Error`: Server error
 
 **Notes**:
+
 - Public key must be in SPKI format, base64-encoded
 - Challenge is valid for 5 minutes
 - Cardhost must sign this challenge and send it back via POST /cardhost/verify
@@ -106,6 +116,7 @@ Request authentication challenge from Router.
 Verify Cardhost signature and complete authentication.
 
 **Request**:
+
 ```json
 {
   "uuid": "550e8400-e29b-41d4-a716-446655440000",
@@ -116,6 +127,7 @@ Verify Cardhost signature and complete authentication.
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "ok": true
@@ -123,11 +135,13 @@ Verify Cardhost signature and complete authentication.
 ```
 
 **Error Responses**:
+
 - `400 Bad Request`: Missing fields or expired challenge
 - `401 Unauthorized`: Invalid signature
 - `500 Internal Server Error`: Server error
 
 **Notes**:
+
 - Signature must be a valid Ed25519 detached signature over the challenge
 - Challenge must match what was issued in POST /cardhost/connect
 - Challenge expires 5 minutes after issue
@@ -141,6 +155,7 @@ Verify Cardhost signature and complete authentication.
 Create a relay session between Controller and Cardhost.
 
 **Request**:
+
 ```http
 POST /sessions HTTP/1.1
 x-session-token: sess_abcdef1234567890
@@ -152,6 +167,7 @@ Content-Type: application/json
 ```
 
 **Response** (201 Created):
+
 ```json
 {
   "relayId": "<relay-session-id>"
@@ -159,12 +175,14 @@ Content-Type: application/json
 ```
 
 **Error Responses**:
+
 - `400 Bad Request`: Missing cardhostUuid
 - `401 Unauthorized`: Invalid or expired session token
 - `404 Not Found`: Cardhost not found or offline
 - `500 Internal Server Error`: Server error
 
 **Notes**:
+
 - Session token must be obtained from POST /controller/connect
 - Cardhost must be online (connected to Router)
 - relayId is used to identify the relay for WebSocket connections
@@ -178,11 +196,13 @@ Content-Type: application/json
 **URL**: `wss://router.example.com/ws/session`
 
 **Headers**:
+
 ```
 x-session-token: sess_abcdef1234567890
 ```
 
 **Connection Flow**:
+
 1. Client connects to WebSocket with valid session token
 2. Router opens connection and starts heartbeat (every 30 seconds)
 3. Client receives heartbeat messages
@@ -196,10 +216,10 @@ All WebSocket messages use an envelope format:
 
 ```typescript
 interface WsEnvelope<T = unknown> {
-  type: 'apdu.command' | 'apdu.response' | 'encrypted' | 'heartbeat' | 'error';
+  type: "apdu.command" | "apdu.response" | "encrypted" | "heartbeat" | "error";
   payload: T;
-  seq?: number;          // Monotonic sequence number
-  ts?: string;           // ISO8601 timestamp
+  seq?: number; // Monotonic sequence number
+  ts?: string; // ISO8601 timestamp
 }
 ```
 
@@ -212,6 +232,7 @@ interface WsEnvelope<T = unknown> {
 Sent by Router every 30 seconds. Client may ignore or send pong.
 
 **From Router**:
+
 ```json
 {
   "type": "heartbeat",
@@ -227,6 +248,7 @@ Sent by Router every 30 seconds. Client may ignore or send pong.
 Controller sends APDU command encrypted.
 
 **From Controller**:
+
 ```json
 {
   "type": "encrypted",
@@ -242,6 +264,7 @@ Controller sends APDU command encrypted.
 ```
 
 **Inner plaintext** (decrypted by Cardhost):
+
 ```json
 {
   "hex": "00A4040008A000000003000000"
@@ -253,6 +276,7 @@ Controller sends APDU command encrypted.
 Cardhost sends APDU response encrypted.
 
 **From Cardhost**:
+
 ```json
 {
   "type": "encrypted",
@@ -268,6 +292,7 @@ Cardhost sends APDU response encrypted.
 ```
 
 **Inner plaintext** (decrypted by Controller):
+
 ```json
 {
   "dataHex": "A4",
@@ -280,6 +305,7 @@ Cardhost sends APDU response encrypted.
 Router sends error message on failures.
 
 **From Router**:
+
 ```json
 {
   "type": "error",
@@ -309,30 +335,30 @@ All error responses follow this format:
 
 ### HTTP Status Codes
 
-| Status | Meaning | Common Causes |
-|--------|---------|---------------|
-| 200 | OK | Successful request |
-| 201 | Created | Successful resource creation |
-| 400 | Bad Request | Malformed request, missing fields |
-| 401 | Unauthorized | Invalid credentials or expired token |
-| 403 | Forbidden | Insufficient permissions |
-| 404 | Not Found | Resource not found |
-| 408 | Request Timeout | Request took too long |
-| 409 | Conflict | Resource already exists |
-| 500 | Server Error | Unexpected server error |
-| 502 | Bad Gateway | Service unavailable |
-| 503 | Service Unavailable | Server overloaded or maintenance |
+| Status | Meaning             | Common Causes                        |
+| ------ | ------------------- | ------------------------------------ |
+| 200    | OK                  | Successful request                   |
+| 201    | Created             | Successful resource creation         |
+| 400    | Bad Request         | Malformed request, missing fields    |
+| 401    | Unauthorized        | Invalid credentials or expired token |
+| 403    | Forbidden           | Insufficient permissions             |
+| 404    | Not Found           | Resource not found                   |
+| 408    | Request Timeout     | Request took too long                |
+| 409    | Conflict            | Resource already exists              |
+| 500    | Server Error        | Unexpected server error              |
+| 502    | Bad Gateway         | Service unavailable                  |
+| 503    | Service Unavailable | Server overloaded or maintenance     |
 
 ### WebSocket Close Codes
 
-| Code | Meaning |
-|------|---------|
-| 1000 | Normal closure |
-| 1001 | Going away |
-| 1002 | Protocol error |
+| Code | Meaning          |
+| ---- | ---------------- |
+| 1000 | Normal closure   |
+| 1001 | Going away       |
+| 1002 | Protocol error   |
 | 1003 | Unsupported data |
 | 1008 | Policy violation |
-| 1011 | Server error |
+| 1011 | Server error     |
 
 ---
 
@@ -341,11 +367,13 @@ All error responses follow this format:
 ### Bearer Token Format
 
 Bearer tokens are opaque strings. Implementations may use:
+
 - JWT tokens
 - UUIDs
 - Random cryptographic strings
 
 **Header**:
+
 ```
 Authorization: Bearer <token>
 ```
@@ -362,10 +390,12 @@ Authorization: Bearer <token>
 ## 5. Rate Limiting
 
 **Recommended Limits**:
+
 - 100 requests/minute per IP (general API)
 - 1000 messages/minute per WebSocket session (APDU relay)
 
 **Response Headers**:
+
 ```
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
@@ -399,6 +429,7 @@ X-RateLimit-Reset: 1733689800
 ### Message Authentication
 
 All critical messages must include a detached signature:
+
 - **Algorithm**: Ed25519 or ECDSA-P256
 - **Format**: Base64-encoded signature over canonicalized JSON payload
 
@@ -449,6 +480,7 @@ All critical messages must include a detached signature:
 Get Cardhost status.
 
 **Response** (200 OK):
+
 ```json
 {
   "isRunning": true,
@@ -473,12 +505,10 @@ Get Cardhost status.
 Get recent logs.
 
 **Response** (200 OK):
+
 ```json
 {
-  "logs": [
-    "[2025-12-08T19:49:02.730Z] [INFO] Connected to Router",
-    "[2025-12-08T19:49:03.500Z] [INFO] APDU sent: 00A4040008A000000003000000"
-  ],
+  "logs": ["[2025-12-08T19:49:02.730Z] [INFO] Connected to Router", "[2025-12-08T19:49:03.500Z] [INFO] APDU sent: 00A4040008A000000003000000"],
   "total": 150
 }
 ```

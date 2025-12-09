@@ -2,13 +2,17 @@
  * Router Transport for Controller
  * Implements ClientTransport interface from jsapdu-over-ip
  * Handles HTTP/WebSocket communication with Router for RPC calls
- * 
+ *
  * Reference: research/jsapdu-over-ip/src/transport.ts - FetchClientTransport
  */
 
-import type { ClientTransport } from '@aokiapp/jsapdu-over-ip';
-import type { RpcRequest, RpcResponse, RpcEvent } from '@aokiapp/jsapdu-over-ip';
-import { fetch } from 'undici';
+import type { ClientTransport } from "@aokiapp/jsapdu-over-ip";
+import type {
+  RpcRequest,
+  RpcResponse,
+  RpcEvent,
+} from "@aokiapp/jsapdu-over-ip";
+import { fetch } from "undici";
 
 export interface RouterClientTransportConfig {
   rpcEndpoint: string;
@@ -30,24 +34,26 @@ export class RouterClientTransport implements ClientTransport {
    */
   async call(request: RpcRequest): Promise<RpcResponse> {
     const response = await fetch(this.config.rpcEndpoint, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'x-session-token': this.config.sessionToken,
-        'x-cardhost-uuid': this.config.cardhostUuid
+        "Content-Type": "application/json",
+        "x-session-token": this.config.sessionToken,
+        "x-cardhost-uuid": this.config.cardhostUuid,
       },
-      body: JSON.stringify(request)
+      body: JSON.stringify(request),
     });
 
     if (!response.ok) {
-      throw new Error(`RPC call failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `RPC call failed: ${response.status} ${response.statusText}`,
+      );
     }
 
-    const result = await response.json() as unknown;
+    const result = (await response.json()) as unknown;
 
     // Validate RpcResponse structure
     if (!this.isRpcResponse(result)) {
-      throw new Error('Invalid RpcResponse format from server');
+      throw new Error("Invalid RpcResponse format from server");
     }
 
     return result;
@@ -73,14 +79,14 @@ export class RouterClientTransport implements ClientTransport {
    */
   private isRpcResponse(obj: unknown): obj is RpcResponse {
     return (
-      typeof obj === 'object' &&
+      typeof obj === "object" &&
       obj !== null &&
-      'id' in obj &&
-      typeof (obj as RpcResponse).id === 'string' &&
-      ('result' in obj || 'error' in obj) &&
-      (!('error' in obj) ||
-        (typeof (obj as RpcResponse).error?.code === 'string' &&
-         typeof (obj as RpcResponse).error?.message === 'string'))
+      "id" in obj &&
+      typeof (obj as RpcResponse).id === "string" &&
+      ("result" in obj || "error" in obj) &&
+      (!("error" in obj) ||
+        (typeof (obj as RpcResponse).error?.code === "string" &&
+          typeof (obj as RpcResponse).error?.message === "string"))
     );
   }
 

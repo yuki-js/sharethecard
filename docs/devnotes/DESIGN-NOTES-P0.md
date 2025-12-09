@@ -66,6 +66,7 @@ Explicit Boundary: RPC と暗号は分離（Router は暗号文の透過中継�
     - onMessage = per-envelope dispatcher
 
 Files touched:
+
 - [packages/router/src/runtime/server.ts](packages/router/src/runtime/server.ts) — add upgrade handler
 - [packages/router/src/lib/relay/session-relay.ts](packages/router/src/lib/relay/session-relay.ts) — augment internal routing
 
@@ -139,6 +140,7 @@ Replace placeholder in [TypeScript.SessionRelay.relayToCardhost()](packages/rout
 Principle: Router is a dumb relay of opaque ciphertext. JoIP remains pure RPC serialization ([TypeScript.ClientTransport](research/jsapdu-over-ip/src/transport.ts:14) / [TypeScript.ServerTransport](research/jsapdu-over-ip/src/transport.ts:35)).
 
 New files:
+
 - [packages/shared/src/crypto/e2e-encryption.ts](packages/shared/src/crypto/e2e-encryption.ts)
 - [packages/controller/src/lib/e2e-wrapper.ts](packages/controller/src/lib/e2e-wrapper.ts)
 - [packages/cardhost/src/lib/e2e-wrapper.ts](packages/cardhost/src/lib/e2e-wrapper.ts)
@@ -158,11 +160,11 @@ New files:
   ```json
   {
     "v": 1,
-    "seq": 123,                    // Monotonic sequence number
-    "iv": "base64(12 bytes)",      // AES-GCM IV per message
-    "ciphertext": "base64(...)",   // AES-GCM ciphertext (includes tag)
-    "senderPub": "base64(...)",    // Ephemeral ECDH public key (or session ID)
-    "sig": "base64(...)"           // Ed25519 signature over canonical JSON of {v, seq, iv, ciphertext, senderPub}
+    "seq": 123, // Monotonic sequence number
+    "iv": "base64(12 bytes)", // AES-GCM IV per message
+    "ciphertext": "base64(...)", // AES-GCM ciphertext (includes tag)
+    "senderPub": "base64(...)", // Ephemeral ECDH public key (or session ID)
+    "sig": "base64(...)" // Ed25519 signature over canonical JSON of {v, seq, iv, ciphertext, senderPub}
   }
   ```
 - Nonce/Sequence/Replay
@@ -191,6 +193,7 @@ New files:
 Target: [TypeScript.SessionRelay.relayToCardhost()](packages/router/src/lib/relay/session-relay.ts:136) lines [packages/router/src/lib/relay/session-relay.ts](packages/router/src/lib/relay/session-relay.ts:174-180)
 
 Replace with:
+
 - Lookup `cardhostConn`
 - Register pending resolver by `request.id`
 - `cardhostConn.send({ type: 'rpc-request', payload: request })`
@@ -198,6 +201,7 @@ Replace with:
 - Add `onMessage` handler attachment on connection registration to process `rpc-response` and `rpc-event` envelopes
 
 Also adjust [TypeScript.SessionRelay.relayToController()](packages/router/src/lib/relay/session-relay.ts:186):
+
 - If controller WS exists → `controllerConn.send(response)`
 - Else → resolve pending map promise (HTTP bridge path)
 

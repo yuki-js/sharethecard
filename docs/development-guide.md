@@ -110,21 +110,21 @@ function deriveKey(secret, salt) {
 
 ### Naming Conventions
 
-| Type | Convention | Example |
-|------|-----------|---------|
-| Files | kebab-case | `crypto-utils.ts` |
-| Classes | PascalCase | `CardHostManager` |
-| Functions | camelCase | `sendApduCommand()` |
-| Constants | UPPER_SNAKE_CASE | `MAX_RETRY_COUNT` |
-| Interfaces | PascalCase with `I` prefix (optional) | `IApduCommand` or `ApduCommand` |
-| Private members | camelCase with `_` prefix | `_internalState` |
+| Type            | Convention                            | Example                         |
+| --------------- | ------------------------------------- | ------------------------------- |
+| Files           | kebab-case                            | `crypto-utils.ts`               |
+| Classes         | PascalCase                            | `CardHostManager`               |
+| Functions       | camelCase                             | `sendApduCommand()`             |
+| Constants       | UPPER_SNAKE_CASE                      | `MAX_RETRY_COUNT`               |
+| Interfaces      | PascalCase with `I` prefix (optional) | `IApduCommand` or `ApduCommand` |
+| Private members | camelCase with `_` prefix             | `_internalState`                |
 
 ### File Organization
 
 ```typescript
 // 1. Imports
-import type { SomeType } from './types';
-import { someUtility } from './utils';
+import type { SomeType } from "./types";
+import { someUtility } from "./utils";
 
 // 2. Type definitions
 interface MyInterface {
@@ -158,22 +158,22 @@ export { MyClass };
 Create tests in `tests/unit/`, `tests/integration/`, or `tests/e2e/`:
 
 ```typescript
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
-describe('Feature Name', () => {
-  describe('Sub-feature', () => {
-    it('should do something specific', () => {
+describe("Feature Name", () => {
+  describe("Sub-feature", () => {
+    it("should do something specific", () => {
       // Arrange
-      const input = 'test';
-      
+      const input = "test";
+
       // Act
       const result = functionUnderTest(input);
-      
+
       // Assert
-      expect(result).toBe('expected');
+      expect(result).toBe("expected");
     });
 
-    it('should handle edge case', () => {
+    it("should handle edge case", () => {
       expect(() => functionUnderTest(null)).toThrow();
     });
   });
@@ -213,16 +213,17 @@ npm test -- --grep "ECDH"
 Use `vi.mock()` for mocking modules:
 
 ```typescript
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
-vi.mock('./external-module', () => ({
-  externalFunction: vi.fn(() => 'mocked-result')
+vi.mock("./external-module", () => ({
+  externalFunction: vi.fn(() => "mocked-result"),
 }));
 ```
 
 ### Test Coverage
 
 Minimum requirements:
+
 - **Shared modules**: 80%
 - **Authentication**: 90%
 - **Encryption**: 100%
@@ -279,21 +280,25 @@ npm run typecheck -- --watch
 ### Adding a New Feature
 
 1. Create feature branch:
+
    ```bash
    git checkout -b feature/my-feature
    ```
 
 2. Implement feature in appropriate package:
+
    ```bash
    # Edit files in packages/*/src/
    ```
 
 3. Add tests:
+
    ```bash
    # Add test files in tests/
    ```
 
 4. Verify quality:
+
    ```bash
    npm run typecheck
    npm run lint
@@ -301,6 +306,7 @@ npm run typecheck -- --watch
    ```
 
 5. Commit and push:
+
    ```bash
    git add .
    git commit -m "feat: add my feature
@@ -315,19 +321,22 @@ npm run typecheck -- --watch
 ### Fixing a Bug
 
 1. Create issue branch:
+
    ```bash
    git checkout -b fix/issue-description
    ```
 
 2. Write failing test:
+
    ```typescript
    // Add test that reproduces bug
-   it('should handle X correctly', () => {
+   it("should handle X correctly", () => {
      expect(buggyFunction()).toEqual(correct);
    });
    ```
 
 3. Fix bug:
+
    ```bash
    # Edit relevant files
    npm test  # Verify test passes
@@ -394,6 +403,7 @@ footer
 ```
 
 Types:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation
@@ -403,6 +413,7 @@ Types:
 - `chore`: Build/tooling changes
 
 Example:
+
 ```
 feat(crypto): add HMAC-based message authentication
 
@@ -425,6 +436,7 @@ Closes #123
 ### VS Code Setup
 
 `.vscode/launch.json`:
+
 ```json
 {
   "version": "0.2.0",
@@ -498,12 +510,7 @@ const signature = signJsonEd25519(payload, privateKey);
  * @returns Derived session key
  * @throws Error if inputs are invalid length
  */
-export function deriveSessionKey(
-  sharedSecret: Uint8Array,
-  salt: Uint8Array,
-  info: Uint8Array,
-  length = 32
-): Uint8Array {
+export function deriveSessionKey(sharedSecret: Uint8Array, salt: Uint8Array, info: Uint8Array, length = 32): Uint8Array {
   // implementation
 }
 ```

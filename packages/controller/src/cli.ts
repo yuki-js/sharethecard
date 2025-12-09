@@ -7,83 +7,83 @@
  * Spec: docs/what-to-make.md Section 3.1 & 3.5
  */
 
-import yargs from 'yargs';
-import type { Argv } from 'yargs';
-import { hideBin } from 'yargs/helpers';
-import chalk from 'chalk';
+import yargs from "yargs";
+import type { Argv } from "yargs";
+import { hideBin } from "yargs/helpers";
+import chalk from "chalk";
 
-import { run as runConnect } from './commands/connect.js';
-import { run as runSend } from './commands/send.js';
-import { run as runInteractive } from './commands/interactive.js';
-import { run as runScript } from './commands/script.js';
-import { run as runList } from './commands/list.js';
+import { run as runConnect } from "./commands/connect.js";
+import { run as runSend } from "./commands/send.js";
+import { run as runInteractive } from "./commands/interactive.js";
+import { run as runScript } from "./commands/script.js";
+import { run as runList } from "./commands/list.js";
 
 async function main() {
   await yargs(hideBin(process.argv))
-    .scriptName('controller')
-    .usage('Usage: $0 <command> [options]')
+    .scriptName("controller")
+    .usage("Usage: $0 <command> [options]")
     .strict()
-    .option('router', {
-      type: 'string',
-      desc: 'Router base URL (e.g., https://router.example.com)'
+    .option("router", {
+      type: "string",
+      desc: "Router base URL (e.g., https://router.example.com)",
     })
-    .option('cardhost', {
-      type: 'string',
-      desc: 'Target Cardhost UUID'
+    .option("cardhost", {
+      type: "string",
+      desc: "Target Cardhost UUID",
     })
-    .option('token', {
-      type: 'string',
-      desc: 'Bearer token for Controller authentication'
+    .option("token", {
+      type: "string",
+      desc: "Bearer token for Controller authentication",
     })
-    .option('verbose', {
-      type: 'boolean',
-      desc: 'Enable verbose logging',
-      default: false
+    .option("verbose", {
+      type: "boolean",
+      desc: "Enable verbose logging",
+      default: false,
     })
     .command(
-      'connect',
-      'Establish authenticated connection to Router using Cardhost UUID',
+      "connect",
+      "Establish authenticated connection to Router using Cardhost UUID",
       (y: Argv) => y,
-      (argv: unknown) => runConnect(argv as any)
+      (argv: unknown) => runConnect(argv as any),
     )
     .command(
-      'send',
-      'Send a single APDU command (hex) to Cardhost via Router',
+      "send",
+      "Send a single APDU command (hex) to Cardhost via Router",
       (y: Argv) =>
-        y.option('apdu', {
-          type: 'string',
+        y.option("apdu", {
+          type: "string",
           demandOption: true,
-          desc: 'APDU command hex string'
+          desc: "APDU command hex string",
         }),
-      (argv: unknown) => runSend(argv as any)
+      (argv: unknown) => runSend(argv as any),
     )
     .command(
-      'interactive',
-      'Start REPL-like interactive mode for repeated APDU sends',
+      "interactive",
+      "Start REPL-like interactive mode for repeated APDU sends",
       (y: Argv) => y,
-      (argv: unknown) => runInteractive(argv as any)
+      (argv: unknown) => runInteractive(argv as any),
     )
     .command(
-      'script',
-      'Execute APDU commands from a JSON script file',
+      "script",
+      "Execute APDU commands from a JSON script file",
       (y: Argv) =>
-        y.option('file', {
-          type: 'string',
+        y.option("file", {
+          type: "string",
           demandOption: true,
-          desc: 'Path to JSON file containing [{"apdu":"HEX"}, ...]'
+          desc: 'Path to JSON file containing [{"apdu":"HEX"}, ...]',
         }),
-      (argv: unknown) => runScript(argv as any)
+      (argv: unknown) => runScript(argv as any),
     )
     .command(
-      'list',
-      'List Cardhosts known to the Router',
+      "list",
+      "List Cardhosts known to the Router",
       (y: Argv) => y,
-      (argv: unknown) => runList(argv as any)
+      (argv: unknown) => runList(argv as any),
     )
     .help()
-    .alias('h', 'help')
-    .version('0.1.0')
-    .demandCommand(1, 'Please specify a command')
+    .alias("h", "help")
+    .version("0.1.0")
+    .demandCommand(1, "Please specify a command")
     .parseAsync();
 }
 

@@ -39,6 +39,7 @@ This implementation violates the core specification in critical ways:
 ### What Should Be Used Instead
 
 **Current valid documents:**
+
 - [`CRITICAL-PROBLEMS-ANALYSIS.md`](CRITICAL-PROBLEMS-ANALYSIS.md) - Detailed analysis of what's wrong
 - [`PROPER-ARCHITECTURE-DESIGN.md`](PROPER-ARCHITECTURE-DESIGN.md) - Correct architecture design
 - [`research-jsapdu-joip.md`](research-jsapdu-joip.md) - Research on required libraries
@@ -285,12 +286,14 @@ Central relay and authentication server (Hono framework):
 ### Authentication
 
 ✅ **Controller (Bearer Token)**
+
 - Minimum 10-character length validation
 - Session token issuance
 - 1-hour expiration
 - Used in REST and WebSocket headers
 
 ✅ **Cardhost (Public Key + Challenge)**
+
 - Ed25519 keypair generation
 - Challenge-response authentication
 - Signature verification
@@ -300,18 +303,21 @@ Central relay and authentication server (Hono framework):
 ### E2E Encryption
 
 ✅ **Key Exchange**
+
 - X25519 ephemeral ECDH
 - Shared secret computation
 - HKDF-SHA256 key derivation
 - Per-session derivation
 
 ✅ **Message Encryption**
+
 - AES-256-GCM (authenticated encryption)
 - 12-byte IV (randomized)
 - 16-byte authentication tag
 - Tampering detection
 
 ✅ **Message Authentication**
+
 - Ed25519 detached signatures
 - Canonical JSON formatting
 - Signature verification on critical messages
@@ -319,16 +325,19 @@ Central relay and authentication server (Hono framework):
 ### Attack Mitigations
 
 ✅ **Replay Attack Prevention**
+
 - Monotonic sequence numbers
 - ISO8601 timestamps
 - Session-based validation
 
 ✅ **Middle-Man Attack Prevention**
+
 - E2E encryption (Router cannot decrypt)
 - Digital signatures for authenticity
 - Public key pinning support
 
 ✅ **DoS Attack Prevention**
+
 - Rate limiting recommendations
 - Timeout configuration
 - Connection limits
@@ -338,16 +347,19 @@ Central relay and authentication server (Hono framework):
 ### Standards Applied
 
 ✅ **TypeScript**
+
 - Strict mode enabled
 - Comprehensive type definitions
 - No implicit `any`
 
 ✅ **Code Style**
+
 - ESLint configuration
 - Prettier formatting
 - Consistent naming conventions
 
 ✅ **Testing**
+
 - 65%+ overall code coverage
 - 90%+ crypto module coverage
 - Unit, integration, and E2E coverage
@@ -355,22 +367,23 @@ Central relay and authentication server (Hono framework):
 **⚠️ PROBLEM: High coverage on wrong code is meaningless**
 
 ✅ **Documentation**
+
 - Comprehensive inline comments
 - JSDoc for public functions
 - Architecture documentation
 
 ## Project Statistics
 
-| Metric | Value |
-|--------|-------|
-| Total Files | 25+ |
-| TypeScript Source | 15 files |
-| Test Files | 5 files |
-| Documentation Files | 5 files |
-| Lines of Code | 3,500+ |
-| Lines of Tests | 1,200+ |
-| Lines of Documentation | 2,000+ |
-| Test Cases | 90+ |
+| Metric                 | Value    |
+| ---------------------- | -------- |
+| Total Files            | 25+      |
+| TypeScript Source      | 15 files |
+| Test Files             | 5 files  |
+| Documentation Files    | 5 files  |
+| Lines of Code          | 3,500+   |
+| Lines of Tests         | 1,200+   |
+| Lines of Documentation | 2,000+   |
+| Test Cases             | 90+      |
 
 **⚠️ NOTE: These statistics describe code that must be deleted and rewritten.**
 
@@ -381,47 +394,54 @@ Central relay and authentication server (Hono framework):
 ~~All requirements from `docs/what-to-make.md` have been implemented:~~
 
 ### Section 1: Overview
+
 ❌ Remote APDU system using jsapdu-over-ip - **NOT IMPLEMENTED**  
 ✅ Three-component architecture  
 ✅ NAT-friendly outbound connections  
-❌ E2E encryption - **Custom implementation, not jsapdu-over-ip's**  
+❌ E2E encryption - **Custom implementation, not jsapdu-over-ip's**
 
 ### Section 2: Architecture
+
 ❌ Controller (Browser/CLI) - **Wrong architecture**  
 ❌ Cardhost (Card Reader) - **Wrong architecture**  
 ❌ Router (Server) - **Wrong architecture**  
-✅ Owner model separation  
+✅ Owner model separation
 
 ### Section 3: Components
+
 ❌ Controller CLI with all commands - **Not library-first**  
 ❌ Cardhost service with UUID management - **Monolithic**  
 ❌ Router with authentication and relay - **Monolithic**  
-✅ Monitor UI with metrics  
+✅ Monitor UI with metrics
 
 ### Section 4: Protocol
+
 ❌ Cardhost ↔ Router authentication - **Custom, not jsapdu-over-ip**  
 ❌ Controller ↔ Router bearer token - **Custom, not jsapdu-over-ip**  
 ❌ E2E ECDH key exchange - **Custom, not jsapdu-over-ip**  
 ❌ AES-256-GCM encryption - **Custom, not jsapdu-over-ip**  
-❌ Ed25519 digital signatures - **Custom, not jsapdu-over-ip**  
+❌ Ed25519 digital signatures - **Custom, not jsapdu-over-ip**
 
 ### Section 5: Security
+
 ❌ Encryption algorithms specified - **Custom implementation**  
 ❌ Authentication methods implemented - **Custom implementation**  
 ❌ Message authentication with signatures - **Custom implementation**  
-❌ Attack mitigations - **Custom implementation**  
+❌ Attack mitigations - **Custom implementation**
 
 ### Section 6: Testing
+
 ✅ Vitest framework  
 ❌ Unit tests (80%+ coverage) - **Test wrong code**  
 ❌ Integration tests - **Assertions commented out**  
-❌ E2E tests with complete flows - **Doesn't test actual system**  
+❌ E2E tests with complete flows - **Doesn't test actual system**
 
 ### Section 7: Development Rules
+
 ✅ Documentation in `docs/` directory  
 ✅ CI/CD pipeline  
 ✅ TypeScript strict mode  
-✅ Naming conventions  
+✅ Naming conventions
 
 ## Conclusion
 
@@ -432,6 +452,7 @@ Central relay and authentication server (Hono framework):
 **ACTUAL STATUS**: The implementation is fundamentally flawed and must be completely rebuilt.
 
 **What needs to happen**:
+
 1. Delete all custom crypto code (use jsapdu-over-ip)
 2. Delete all custom protocol code (use jsapdu-over-ip)
 3. Redesign to library-first architecture
@@ -439,6 +460,7 @@ Central relay and authentication server (Hono framework):
 5. Follow jsapdu patterns (`await using`, proper resource management)
 
 **See these documents for the correct approach:**
+
 - [`CRITICAL-PROBLEMS-ANALYSIS.md`](CRITICAL-PROBLEMS-ANALYSIS.md)
 - [`PROPER-ARCHITECTURE-DESIGN.md`](PROPER-ARCHITECTURE-DESIGN.md)
 

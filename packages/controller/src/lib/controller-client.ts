@@ -2,38 +2,42 @@
  * Controller Client - Core Library
  * Wraps RemoteSmartCardPlatform from jsapdu-over-ip
  * Provides testable, composable Controller functionality
- * 
+ *
  * Spec: docs/what-to-make.md Section 3.1 - Controller
  * Reference: research/jsapdu-over-ip/src/client/platform-proxy.ts
  */
 
-import { RemoteSmartCardPlatform } from '@aokiapp/jsapdu-over-ip/client';
-import { CommandApdu, ResponseApdu, SmartCardError } from '@aokiapp/jsapdu-interface';
-import { SessionManager } from './session-manager.js';
-import { RouterClientTransport } from './router-transport.js';
-import type { ControllerConfig, CardhostInfo } from '@remote-apdu/shared';
+import { RemoteSmartCardPlatform } from "@aokiapp/jsapdu-over-ip/client";
+import {
+  CommandApdu,
+  ResponseApdu,
+  SmartCardError,
+} from "@aokiapp/jsapdu-interface";
+import { SessionManager } from "./session-manager.js";
+import { RouterClientTransport } from "./router-transport.js";
+import type { ControllerConfig, CardhostInfo } from "@remote-apdu/shared";
 
 /**
  * Controller Client
- * 
+ *
  * This is the library core - fully testable without CLI.
- * 
+ *
  * Usage:
  * ```typescript
  * const client = new ControllerClient({
  *   routerUrl: 'http://router.example.com',
  *   token: 'bearer-token-123'
  * });
- * 
+ *
  * await client.connect('cardhost-uuid-here');
- * 
+ *
  * // Use jsapdu-interface methods
  * const command = new CommandApdu(0x00, 0xA4, 0x04, 0x00, ...);
  * const response = await client.transmit(command);
- * 
+ *
  * await client.disconnect();
  * ```
- * 
+ *
  * Also supports `await using`:
  * ```typescript
  * await using client = new ControllerClient(config);
@@ -51,33 +55,33 @@ export class ControllerClient {
   constructor(private config: ControllerConfig) {
     this.sessionManager = new SessionManager({
       routerUrl: config.routerUrl,
-      token: config.token
+      token: config.token,
     });
   }
 
   /**
    * Connect to Router and establish connection with specific Cardhost
-   * 
+   *
    * This performs:
    * 1. Bearer token authentication with Router
    * 2. Session creation with target Cardhost
    * 3. RemoteSmartCardPlatform initialization (jsapdu-over-ip)
-   * 
+   *
    * After connection, the platform can be used like local SmartCardPlatform
    */
   async connect(cardhostUuid?: string): Promise<void> {
     const uuid = cardhostUuid ?? this.config.cardhostUuid;
     if (!uuid) {
       throw new SmartCardError(
-        'INVALID_PARAMETER',
-        'Cardhost UUID required. Provide via config or parameter.'
+        "INVALID_PARAMETER",
+        "Cardhost UUID required. Provide via config or parameter.",
       );
     }
 
     if (this.platform) {
       throw new SmartCardError(
-        'ALREADY_CONNECTED',
-        'Already connected. Disconnect first.'
+        "ALREADY_CONNECTED",
+        "Already connected. Disconnect first.",
       );
     }
 
@@ -90,7 +94,7 @@ export class ControllerClient {
     this.transport = new RouterClientTransport({
       rpcEndpoint: `${this.config.routerUrl}/api/jsapdu/rpc`,
       sessionToken,
-      cardhostUuid: uuid
+      cardhostUuid: uuid,
     });
 
     // Create RemoteSmartCardPlatform (jsapdu-over-ip client)
@@ -112,10 +116,10 @@ export class ControllerClient {
 
   /**
    * Get the underlying jsapdu-interface platform
-   * 
+   *
    * This returns RemoteSmartCardPlatform which is 100% compatible
    * with SmartCardPlatform interface from jsapdu
-   * 
+   *
    * Use this for advanced operations following jsapdu patterns:
    * ```typescript
    * const platform = client.getPlatform();
@@ -128,8 +132,8 @@ export class ControllerClient {
   getPlatform(): RemoteSmartCardPlatform {
     if (!this.platform) {
       throw new SmartCardError(
-        'NOT_CONNECTED',
-        'Not connected. Call connect() first.'
+        "NOT_CONNECTED",
+        "Not connected. Call connect() first.",
       );
     }
     return this.platform;
@@ -137,10 +141,10 @@ export class ControllerClient {
 
   /**
    * Send APDU command (convenience method)
-   * 
+   *
    * This is a simplified API that handles the full jsapdu flow:
    * platform → acquireDevice → startSession → transmit
-   * 
+   *
    * For simple use cases, this is more convenient than calling
    * getPlatform() and managing device/card lifecycle manually.
    */
@@ -152,8 +156,8 @@ export class ControllerClient {
     const devices = await platform.getDeviceInfo();
     if (devices.length === 0) {
       throw new SmartCardError(
-        'NO_READERS',
-        'No devices available on Cardhost'
+        "NO_READERS",
+        "No devices available on Cardhost",
       );
     }
 
@@ -163,8 +167,8 @@ export class ControllerClient {
       const isPresent = await device.isCardPresent();
       if (!isPresent) {
         throw new SmartCardError(
-          'CARD_NOT_PRESENT',
-          'Card not present. Insert card and try again.'
+          "CARD_NOT_PRESENT",
+          "Card not present. Insert card and try again.",
         );
       }
 
@@ -175,7 +179,7 @@ export class ControllerClient {
         try {
           await card.release();
         } catch (err) {
-          console.warn('[ControllerClient] Card cleanup error:', err);
+          console.warn("[ControllerClient] Card cleanup error:", err);
           // Continue despite cleanup error to avoid masking primary results
         }
       }
@@ -183,7 +187,7 @@ export class ControllerClient {
       try {
         await device.release();
       } catch (err) {
-        console.warn('[ControllerClient] Device cleanup error:', err);
+        console.warn("[ControllerClient] Device cleanup error:", err);
         // Continue despite cleanup error to avoid masking primary results
       }
     }
@@ -222,7 +226,7 @@ export class ControllerClient {
 
   /**
    * Async disposal support (await using)
-   * 
+   *
    * Example:
    * ```typescript
    * await using client = new ControllerClient(config);

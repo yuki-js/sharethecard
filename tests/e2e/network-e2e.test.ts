@@ -11,23 +11,27 @@
  * - Controller creates relay (/sessions) and transmits APDU via HTTP /api/jsapdu/rpc
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 // Start the real runtime server inside this process on a dedicated port
-import { startRuntimeServer } from '../../packages/router/src/runtime/server.ts';
+import { startRuntimeServer } from "../../packages/router/src/runtime/server.ts";
 
 // Cardhost (server-side) and Controller (client-side) libraries
-import { CardhostService, MockSmartCardPlatform, ConfigManager } from '@remote-apdu/cardhost';
-import { ControllerClient, CommandApdu } from '@remote-apdu/controller';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { rmSync } from 'node:fs';
+import {
+  CardhostService,
+  MockSmartCardPlatform,
+  ConfigManager,
+} from "@remote-apdu/cardhost";
+import { ControllerClient, CommandApdu } from "@remote-apdu/controller";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { rmSync } from "node:fs";
 
-describe('E2E: Real network end-to-end (HTTP+WS, single process)', () => {
-  const HOST = '127.0.0.1';
+describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
+  const HOST = "127.0.0.1";
   const PORT = 31101; // dedicated test port
   const BASE_URL = `http://${HOST}:${PORT}`;
-  const BEARER_TOKEN = 'test-bearer-token-e2e-123456';
+  const BEARER_TOKEN = "test-bearer-token-e2e-123456";
 
   let runtime: Awaited<ReturnType<typeof startRuntimeServer>> | null = null;
   let cardhost: CardhostService | null = null;
@@ -44,13 +48,13 @@ describe('E2E: Real network end-to-end (HTTP+WS, single process)', () => {
     // Ensure defaults and persisted config point to the active test runtime port
     process.env.ROUTER_URL = BASE_URL;
     testDir = join(tmpdir(), `network-e2e-${Date.now()}`);
-    const testFile = join(testDir, 'config.json');
+    const testFile = join(testDir, "config.json");
     const configManager = new ConfigManager(testFile, testDir);
 
     cardhost = new CardhostService({
       routerUrl: BASE_URL,
       platform: mockPlatform,
-      configManager
+      configManager,
     });
     await cardhost.connect();
     // Allow WS registration to settle (SessionRelay.registerCardhostConnection)
@@ -73,20 +77,22 @@ describe('E2E: Real network end-to-end (HTTP+WS, single process)', () => {
 
     // Cleanup temp config dir
     if (testDir) {
-      try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+      try {
+        rmSync(testDir, { recursive: true, force: true });
+      } catch {}
       testDir = null;
     }
   });
 
-  it('should transmit APDU end-to-end (Controller → HTTP RPC → WS Relay → Cardhost)', async () => {
-    if (!cardhost) throw new Error('Cardhost not started');
+  it("should transmit APDU end-to-end (Controller → HTTP RPC → WS Relay → Cardhost)", async () => {
+    if (!cardhost) throw new Error("Cardhost not started");
     const cardhostUuid = cardhost.getUuid();
 
     // Controller uses HTTP (/controller/connect, /sessions, /api/jsapdu/rpc)
     const client = new ControllerClient({
       routerUrl: BASE_URL,
       token: BEARER_TOKEN,
-      cardhostUuid
+      cardhostUuid,
     });
 
     await client.connect();
@@ -98,9 +104,12 @@ describe('E2E: Real network end-to-end (HTTP+WS, single process)', () => {
     try {
       // SELECT command over the full network stack
       const select = new CommandApdu(
-        0x00, 0xA4, 0x04, 0x00,
-        new Uint8Array([0xA0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]),
-        null
+        0x00,
+        0xa4,
+        0x04,
+        0x00,
+        new Uint8Array([0xa0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]),
+        null,
       );
 
       const response = await client.transmit(select);
@@ -110,20 +119,20 @@ describe('E2E: Real network end-to-end (HTTP+WS, single process)', () => {
     }
   });
 
-  it('should allow custom APDU responses from Cardhost mock over the network', async () => {
-    if (!cardhost || !mockPlatform) throw new Error('Cardhost not started');
+  it("should allow custom APDU responses from Cardhost mock over the network", async () => {
+    if (!cardhost || !mockPlatform) throw new Error("Cardhost not started");
 
     // Configure mock response (held on the Cardhost side)
-    const commandHex = '00A4040008A000000003000000';
+    const commandHex = "00A4040008A000000003000000";
     const customResponse = new Uint8Array([0x61, 0x15]); // SW=0x6115
-    mockPlatform.setDeviceResponse('mock-device-1', commandHex, customResponse);
+    mockPlatform.setDeviceResponse("mock-device-1", commandHex, customResponse);
 
     const cardhostUuid = cardhost.getUuid();
 
     const client = new ControllerClient({
       routerUrl: BASE_URL,
       token: BEARER_TOKEN,
-      cardhostUuid
+      cardhostUuid,
     });
 
     await client.connect();

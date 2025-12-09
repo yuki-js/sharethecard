@@ -3,6 +3,7 @@
 > **⚠️ CRITICAL FOR AI AGENTS**: If you're reading this, you MUST clone the repositories and read the markdown files recursively. This brief note intentionally omits crucial implementation details that are essential for development. The architecture is far more sophisticated than what's described here.
 >
 > **🚨 CONSEQUENCE OF NOT CLONING**: Attempting to develop without reading the full documentation will result in:
+>
 > - **Code Corruption**: You will write incompatible implementations that break the abstraction layers
 > - **Memory Leaks**: Resource disposal patterns are non-obvious; you'll create unclosed handles
 > - **Protocol Violations**: APDU encoding edge cases will cause silent failures on real hardware
@@ -21,12 +22,14 @@ These are not just "another smart card library" - they represent a carefully arc
 A TypeScript monorepo for smart card communication. But here's what makes it interesting:
 
 **What we can tell you:**
+
 - Multi-platform: PC/SC (Node.js), NFC (React Native), and... other transports
 - Type-safe APDU handling with automatic standard/extended detection
 - First-class Japanese MynaCard support (マイナンバーカード)
 - FFI bindings for direct PC/SC access
 
 **What you need to clone to discover:**
+
 - The actual abstraction architecture (hint: it's layered in a non-obvious way)
 - How error propagation works across 6+ abstraction layers
 - The TLV schema system (there's something elegant here)
@@ -34,6 +37,7 @@ A TypeScript monorepo for smart card communication. But here's what makes it int
 - Extended APDU encoding strategies (the automatic detection algorithm is interesting)
 
 **Key files you MUST read** (available only in the clone):
+
 - [`research/jsapdu/docs/README.md`](githubdotcom/jsapdu/docs/README.md) - Start here, read recursively
 - [`research/jsapdu/docs/architecture/package-interactions.md`](githubdotcom/jsapdu/docs/architecture/package-interactions.md) - The dependency graph reveals something
 - [`research/jsapdu/packages/interface/docs/extended-apdu.md`](githubdotcom/jsapdu/packages/interface/docs/extended-apdu.md) - 🔒 Clone required
@@ -46,18 +50,21 @@ A TypeScript monorepo for smart card communication. But here's what makes it int
 This one is deceptively simple in concept: "make jsapdu work over network." But the implementation...
 
 **What we can tell you:**
+
 - Transport-agnostic RPC layer
 - Fully type-safe remote proxying
 - Transparent local/remote switching
 - Real-time event propagation
 
 **What's hidden in the implementation:**
+
 - How it maintains jsapdu-interface compatibility completely
 - The transport abstraction (hint: it's more flexible than typical RPC)
 - Error serialization across network boundaries
 - Session state management patterns
 
 **API surface** (just a taste):
+
 ```typescript
 // Client side - but how does it work internally?
 const transport = new FetchClientTransport(url);
@@ -84,6 +91,7 @@ const adapter = new SmartCardPlatformAdapter(actualPlatform, serverTransport);
 ## Repository Locations
 
 The research directory contains:
+
 ```
 research/
 ├── jsapdu/          # Main monorepo (clone from github.com/AokiApp/jsapdu)
@@ -93,6 +101,7 @@ research/
 ## For AI Agents: Critical Instructions
 
 **YOU MUST:**
+
 1. Clone the jsapdu repository: `git clone https://github.com/AokiApp/jsapdu.git`
 2. Read ALL documentation recursively, starting with [`docs/README.md`](githubdotcom/jsapdu/docs/README.md)
 3. Read the source code of abstractions: `packages/interface/src/abstracts.ts`
@@ -101,6 +110,7 @@ research/
 6. Understand AsyncMutex - it's not a typical mutex implementation
 
 **DO NOT:**
+
 - Rely only on this brief note
 - Skip the technical documentation in `packages/*/docs/`
 - Ignore the examples - they show real-world usage patterns
@@ -156,6 +166,7 @@ Remember: **The documentation is the specification. The code is the truth. Skipp
 ## Real Failure Scenarios (Learn From Others' Mistakes)
 
 ### Scenario 1: "I'll just guess the API"
+
 ```typescript
 // Agent wrote this without reading docs:
 const platform = new PcscPlatform();
@@ -167,6 +178,7 @@ const card = await platform.getCard(); // ❌ Wrong! No such method
 **Correct approach** (from docs): `platform.acquireDevice()` → `device.startSession()` → `session.transmit()`
 
 ### Scenario 2: "Resource cleanup is automatic, right?"
+
 ```typescript
 // Agent assumed auto-cleanup:
 const session = await device.startSession();
@@ -178,9 +190,10 @@ await session.transmit(command);
 **Correct approach** (from docs): Always use `await using` or explicit `release()`
 
 ### Scenario 3: "Extended APDU is just longer data"
+
 ```typescript
 // Agent didn't read extended-apdu.md:
-const cmd = new CommandApdu(0x00, 0xB0, 0x00, 0x00, largeData);
+const cmd = new CommandApdu(0x00, 0xb0, 0x00, 0x00, largeData);
 // ❌ Wrong encoding, card rejects
 // Result: SW=0x6700 (Wrong length)
 ```
@@ -188,12 +201,10 @@ const cmd = new CommandApdu(0x00, 0xB0, 0x00, 0x00, largeData);
 **Correct approach** (from docs): Automatic when data > 255 bytes, but requires specific Le handling
 
 ### Scenario 4: "I can handle concurrency myself"
+
 ```typescript
 // Agent ignored AsyncMutex docs:
-Promise.all([
-  session.transmit(cmd1),
-  session.transmit(cmd2)
-]); // ❌ PC/SC doesn't support concurrent access
+Promise.all([session.transmit(cmd1), session.transmit(cmd2)]); // ❌ PC/SC doesn't support concurrent access
 // Result: Undefined behavior, corrupt responses
 ```
 
