@@ -1,0 +1,35 @@
+# Node / TypeScript monorepo ignores
+
+# Dependencies
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+coverage/
+.vitest/
+*.tsbuildinfo
+
+# Runtime / env
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# TypeScript emitted artifacts that should NOT live in src
+packages/**/src/**/*.js
+packages/**/src/**/*.js.map
+packages/**/src/**/*.d.ts
+
+# Keep manually maintained ambient type stubs in src/types
+!packages/**/src/types/**/*.d.ts

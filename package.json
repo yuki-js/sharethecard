@@ -1,0 +1,46 @@
+{
+  "name": "remote-apdu-system",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Remote APDU Communication System using jsapdu-over-ip: controller CLI, cardhost service, and router.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "workspaces": [
+    "packages/jsapdu-interface",
+    "packages/shared",
+    "packages/controller",
+    "packages/cardhost",
+    "packages/router"
+  ],
+  "scripts": {
+    "build": "npm run build -ws",
+    "clean": "npm run clean -ws || true",
+    "test": "vitest --run",
+    "test:unit": "vitest --run --dir tests/unit",
+    "test:integration": "vitest --run --dir tests/integration",
+    "test:e2e": "vitest --run --dir tests/e2e",
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write .",
+    "typecheck": "tsc -p tsconfig.base.json --noEmit",
+    "prepare": "npm run build -ws"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "@typescript-eslint/eslint-plugin": "^8.2.0",
+    "@typescript-eslint/parser": "^8.2.0",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-n": "^17.9.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  },
+  "dependencies": {
+    "@aokiapp/jsapdu-interface": "^0.0.2"
+  }
+}
