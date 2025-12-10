@@ -87,6 +87,36 @@ class MockSmartCard extends SmartCard {
       ])
     );
 
+    // READ BINARY (short APDU) - Le=256 encoded as 0x00
+    // Matches CommandApdu with Le=256 used in integration tests
+    this.responses.set(
+      "00B0000000",
+      new Uint8Array([
+        // SW: 9000 (no data payload required by tests)
+        0x90, 0x00
+      ])
+    );
+
+    // READ BINARY (extended APDU) - Le=256 (0x0100) with extended marker 0x00
+    // Format: CLA INS P1 P2 00 Le1 Le2 => 00 B0 00 00 00 01 00
+    this.responses.set(
+      "00B00000000100",
+      new Uint8Array([
+        // SW: 9000 (no data payload required by tests)
+        0x90, 0x00
+      ])
+    );
+
+    // READ BINARY (extended APDU) - Le=4096 (0x1000) with extended marker 0x00
+    // Format: CLA INS P1 P2 00 Le1 Le2 => 00 B0 00 00 00 10 00
+    this.responses.set(
+      "00B00000001000",
+      new Uint8Array([
+        // SW: 9000 (no data payload required by tests)
+        0x90, 0x00
+      ])
+    );
+
     // VERIFY PIN incorrect (00 20 00 00 04 31 32 33 34) - Returns 63CX (X retries left)
     this.responses.set(
       "002000000431323334",
@@ -147,9 +177,15 @@ class MockSmartCard extends SmartCard {
         return ResponseApdu.fromUint8Array(bytes as Uint8Array<ArrayBuffer>);
       }
 
-      // Default: return success (9000)
+      // Default (strict ISO7816 behavior): return appropriate error SW
       const emptyData = new Uint8Array(0);
-      return new ResponseApdu(emptyData as Uint8Array<ArrayBuffer>, 0x90, 0x00);
+      const cla = parseInt(key.slice(0, 2), 16);
+      if (cla !== 0x00 && cla !== 0x80) {
+        // CLA not supported
+        return new ResponseApdu(emptyData as Uint8Array<ArrayBuffer>, 0x6E, 0x00);
+      }
+      // INS not supported
+      return new ResponseApdu(emptyData as Uint8Array<ArrayBuffer>, 0x6D, 0x00);
     } else {
       // Raw bytes
       const key = Array.from(apdu, (b) => b.toString(16).padStart(2, "0"))
@@ -161,8 +197,14 @@ class MockSmartCard extends SmartCard {
         return response;
       }
 
-      // Default: return success
-      return new Uint8Array([0x90, 0x00]);
+      // Default (strict ISO7816 behavior): return appropriate error SW
+      const cla = apdu[0] ?? 0x00;
+      if (cla !== 0x00 && cla !== 0x80) {
+        // CLA not supported
+        return new Uint8Array([0x6E, 0x00]);
+      }
+      // INS not supported
+      return new Uint8Array([0x6D, 0x00]);
     }
   }
 
@@ -190,6 +232,7 @@ class MockSmartCard extends SmartCard {
   setResponse(command: string, response: Uint8Array): void {
     this.responses.set(command.toUpperCase(), response);
   }
+
 }
 
 /**
@@ -304,6 +347,7 @@ class MockSmartCardDevice extends SmartCardDevice {
   setResponse(command: string, response: Uint8Array): void {
     this.responses.set(command.toUpperCase(), response);
   }
+
 }
 
 /**
@@ -423,6 +467,7 @@ export class MockSmartCardPlatform extends SmartCardPlatform {
       device.setResponse(command, response);
     }
   }
+
 
   /**
    * Control card presence for specific device (for testing)

@@ -119,14 +119,8 @@ describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
     }
   });
 
-  it("should allow custom APDU responses from Cardhost mock over the network", async () => {
-    if (!cardhost || !mockPlatform) throw new Error("Cardhost not started");
-
-    // Configure mock response (held on the Cardhost side)
-    const commandHex = "00A4040008A000000003000000";
-    const customResponse = new Uint8Array([0x61, 0x15]); // SW=0x6115
-    mockPlatform.setDeviceResponse("mock-device-1", commandHex, customResponse);
-
+  it("should perform a realistic stateful APDU sequence over a single persistent WS session", async () => {
+    if (!cardhost) throw new Error("Cardhost not started");
     const cardhostUuid = cardhost.getUuid();
 
     const client = new ControllerClient({
@@ -135,17 +129,113 @@ describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
     });
 
     await client.connect();
+    await new Promise((r) => setTimeout(r, 100));
 
     try {
-      // Build command from hex
-      const bytes = new Uint8Array(commandHex.length / 2);
-      for (let i = 0; i < commandHex.length; i += 2) {
-        bytes[i / 2] = parseInt(commandHex.slice(i, i + 2), 16);
-      }
-      const command = CommandApdu.fromUint8Array(bytes);
+      // Step 1: SELECT AID -> 9000
+      const selectAid = new CommandApdu(
+        0x00,
+        0xa4,
+        0x04,
+        0x00,
+        new Uint8Array([0xa0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]),
+        null,
+      );
+      let rsp = await client.transmit(selectAid);
+      expect(rsp.sw).toBe(0x9000);
 
-      const response = await client.transmit(command);
-      expect(response.sw).toBe(0x6115);
+      // Step 2: GET DATA -> payload "MOCK" + 9000
+      const getData = new CommandApdu(0x00, 0xca, 0x00, 0x00, null, 0);
+      rsp = await client.transmit(getData);
+      expect(rsp.sw).toBe(0x9000);
+      if (rsp.data) {
+        expect([...rsp.data]).toEqual([0x4d, 0x4f, 0x43, 0x4b]);
+      } else {
+        throw new Error("GET DATA returned no payload");
+      }
+
+      // Step 3: VERIFY wrong PIN "1234" -> 63C2 (2 retries left)
+      const verifyWrong = new CommandApdu(
+        0x00,
+        0x20,
+        0x00,
+        0x00,
+        new Uint8Array([0x31, 0x32, 0x33, 0x34]),
+        null,
+      );
+      rsp = await client.transmit(verifyWrong);
+      expect(rsp.sw).toBe(0x63c2);
+
+      // Step 4: GET CHALLENGE -> 8 bytes + 9000
+      const getChallenge = new CommandApdu(0x00, 0x84, 0x00, 0x00, null, 8);
+      rsp = await client.transmit(getChallenge);
+      expect(rsp.sw).toBe(0x9000);
+      expect(rsp.data?.length ?? 0).toBe(8);
+
+      // Step 5: READ BINARY Le=16 -> 16 bytes + 9000
+      const read16 = new CommandApdu(0x00, 0xb0, 0x00, 0x00, null, 0x10);
+      rsp = await client.transmit(read16);
+      expect(rsp.sw).toBe(0x9000);
+      expect(rsp.data?.length ?? 0).toBe(16);
+
+      // Step 6: READ BINARY (short APDU) Le=256 encoded as Le=0 -> 9000, no payload
+      const readShort256 = new CommandApdu(0x00, 0xb0, 0x00, 0x00, null, 0);
+      rsp = await client.transmit(readShort256);
+      expect(rsp.sw).toBe(0x9000);
+      expect(rsp.data?.length ?? 0).toBe(0);
+
+      // Step 7: READ BINARY (extended APDU) Le=256 -> 9000, no payload
+      const readExt256 = new CommandApdu(0x00, 0xb0, 0x00, 0x00, null, 256);
+      rsp = await client.transmit(readExt256);
+      expect(rsp.sw).toBe(0x9000);
+      expect(rsp.data?.length ?? 0).toBe(0);
+
+      // Step 8: READ BINARY (extended APDU) Le=4096 -> 9000, no payload
+      const readExt4096 = new CommandApdu(0x00, 0xb0, 0x00, 0x00, null, 4096);
+      rsp = await client.transmit(readExt4096);
+      expect(rsp.sw).toBe(0x9000);
+      expect(rsp.data?.length ?? 0).toBe(0);
+
+      // Step 9: SELECT non-existent file -> 6A82
+      const selectInvalid = new CommandApdu(
+        0x00,
+        0xa4,
+        0x00,
+        0x00,
+        new Uint8Array([0xff, 0xff]),
+        null,
+      );
+      rsp = await client.transmit(selectInvalid);
+      expect(rsp.sw).toBe(0x6a82);
+
+      // Step 10: GET RESPONSE wrong Le -> 6C10
+      const getRespWrongLen = new CommandApdu(0x00, 0xc0, 0x00, 0x00, null, 0);
+      rsp = await client.transmit(getRespWrongLen);
+      expect(rsp.sw).toBe(0x6c10);
+
+      // Step 11: Security status not satisfied -> 6982
+      const secNotSatisfied = new CommandApdu(
+        0x00,
+        0xd0,
+        0x00,
+        0x00,
+        new Uint8Array([0x01, 0x02, 0x03, 0x04]),
+        null,
+      );
+      rsp = await client.transmit(secNotSatisfied);
+      expect(rsp.sw).toBe(0x6982);
+
+      // Step 12: SELECT AID again to ensure session continuity -> 9000
+      const selectAgain = new CommandApdu(
+        0x00,
+        0xa4,
+        0x04,
+        0x00,
+        new Uint8Array([0xa0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]),
+        null,
+      );
+      rsp = await client.transmit(selectAgain);
+      expect(rsp.sw).toBe(0x9000);
     } finally {
       await client.disconnect();
     }
