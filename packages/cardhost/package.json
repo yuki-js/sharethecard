@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@aokiapp/jsapdu-interface": "^0.0.2",
-    "@aokiapp/jsapdu-over-ip": "file:../../research/jsapdu-over-ip",
+    "@aokiapp/jsapdu-over-ip": "^0.0.1",
     "@aokiapp/jsapdu-pcsc": "^0.0.2",
     "@remote-apdu/shared": "0.1.0",
     "@types/express": "^4.17.21",

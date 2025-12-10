@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@remote-apdu/shared": "0.1.0",
-    "@aokiapp/jsapdu-over-ip": "file:../../research/jsapdu-over-ip",
+    "@aokiapp/jsapdu-over-ip": "^0.0.1",
     "@hono/node-server": "^1.11.0",
     "hono": "^4.4.7",
     "ws": "^8.18.0",
