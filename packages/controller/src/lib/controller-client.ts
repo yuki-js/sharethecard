@@ -199,19 +199,14 @@ export class ControllerClient {
    * Disconnect from Router and cleanup resources
    */
   async disconnect(): Promise<void> {
-    await Promise.all(
-      [
-        this.platform?.release().then(() => {
-          this.platform = null;
-        }),
-        this.transport?.close().then(() => {
-          this.transport = null;
-        }),
-        this.authenticator?.close().then(() => {
-          this.authenticator = null;
-        }),
-      ].filter(Boolean),
-    );
+    await this.platform?.release();
+    this.platform = null;
+
+    await this.transport?.close();
+    this.transport = null;
+
+    await this.authenticator?.close();
+    this.authenticator = null;
 
     this.connectedCardhostUuid = null;
   }
