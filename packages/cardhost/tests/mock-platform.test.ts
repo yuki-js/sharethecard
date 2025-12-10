@@ -130,7 +130,12 @@ describe("MockSmartCardPlatform", () => {
       await using device = await platform.acquireDevice(devices[0].id);
       await using card = await device.startSession();
 
-      const command = new CommandApdu(0x00, 0xa4, 0x04, 0x00, null, null);
+      // SELECT with AID
+      const command = new CommandApdu(
+        0x00, 0xa4, 0x04, 0x00,
+        new Uint8Array([0xa0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00]),
+        null
+      );
       const response = await card.transmit(command);
 
       expect(response.sw1).toBe(0x90);
@@ -143,7 +148,11 @@ describe("MockSmartCardPlatform", () => {
       await using device = await platform.acquireDevice(devices[0].id);
       await using card = await device.startSession();
 
-      const rawCommand = new Uint8Array([0x00, 0xa4, 0x04, 0x00]);
+      // SELECT with AID as raw bytes
+      const rawCommand = new Uint8Array([
+        0x00, 0xa4, 0x04, 0x00, 0x08,
+        0xa0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00
+      ]);
       const response = await card.transmit(rawCommand);
 
       expect(response).toBeInstanceOf(Uint8Array);
@@ -154,29 +163,26 @@ describe("MockSmartCardPlatform", () => {
   });
 
   describe("Custom Response Configuration", () => {
-    it("should return configured response for specific command", async () => {
+    it("should allow setting custom responses for testing", async () => {
       const platform = new MockSmartCardPlatform();
       await platform.init();
 
-      const commandHex = "00A4040008A000000003000000";
-      const customResponse = new Uint8Array([0x61, 0x15]); // More data available
-
-      platform.setDeviceResponse("mock-device-1", commandHex, customResponse);
-
       const devices = await platform.getDeviceInfo();
       await using device = await platform.acquireDevice(devices[0].id);
+      
+      // Set custom response for a specific command
+      platform.setDeviceResponse(
+        devices[0].id,
+        "00A4000002FFFF", // SELECT non-existent file
+        new Uint8Array([0x6A, 0x82]) // File not found
+      );
+
       await using card = await device.startSession();
+      const response = await card.transmit(
+        new CommandApdu(0x00, 0xa4, 0x00, 0x00, new Uint8Array([0xFF, 0xFF]), null)
+      );
 
-      // Parse command from hex
-      const bytes = new Uint8Array(commandHex.length / 2);
-      for (let i = 0; i < commandHex.length; i += 2) {
-        bytes[i / 2] = parseInt(commandHex.slice(i, i + 2), 16);
-      }
-
-      const command = CommandApdu.fromUint8Array(bytes);
-      const response = await card.transmit(command);
-
-      expect(response.sw).toBe(0x6115);
+      expect(response.sw).toBe(0x6A82);
     });
   });
 

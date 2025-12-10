@@ -46,13 +46,12 @@ describe("ConfigManager", () => {
       expect(config).toHaveProperty("createdAt");
     });
 
-    it("should generate valid UUID v4", async () => {
+    it("should initialize with pending-router-derivation placeholder", async () => {
       const config = await manager.loadOrCreate();
 
-      // UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-      expect(config.uuid).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-      );
+      // UUID is placeholder until Router authentication
+      expect(config.uuid).toBe("pending-router-derivation");
+      expect(config.uuidSource).toBe("router-derived");
     });
 
     it("should generate Ed25519 keypair in base64", async () => {
@@ -147,7 +146,8 @@ describe("ConfigManager", () => {
       await manager.loadOrCreate();
       const uuid = manager.getUuid();
 
-      expect(uuid).toMatch(/^[0-9a-f-]+$/i);
+      // UUID is placeholder until Router authentication
+      expect(uuid).toBe("pending-router-derivation");
     });
 
     it("should throw error if config not loaded", () => {
@@ -193,7 +193,7 @@ describe("ConfigManager", () => {
       expect(config.routerUrl).toBe(specialUrl);
     });
 
-    it("should generate unique UUIDs for different configs", async () => {
+    it("should generate unique keypairs for different configs", async () => {
       const config1 = await manager.loadOrCreate();
 
       // Create second manager with different file
@@ -201,7 +201,9 @@ describe("ConfigManager", () => {
       const manager2 = new ConfigManager(testFile2, testDir);
       const config2 = await manager2.loadOrCreate();
 
-      expect(config1.uuid).not.toBe(config2.uuid);
+      // Keypairs should be unique (not UUIDs - those are derived by Router)
+      expect(config1.signingPublicKey).not.toBe(config2.signingPublicKey);
+      expect(config1.signingPrivateKey).not.toBe(config2.signingPrivateKey);
     });
   });
 });

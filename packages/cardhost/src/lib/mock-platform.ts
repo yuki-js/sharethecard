@@ -58,7 +58,13 @@ class MockSmartCard extends SmartCard {
    * テスト用のデフォルトレスポンスを設定
    */
   private setupDefaultResponses(): void {
-    // SELECT File (00 A4 04 00 08 A0 00 00 00 03 00 00 00)
+    // SELECT File - short APDU (no data)
+    this.responses.set(
+      "00A40400",
+      new Uint8Array([0x90, 0x00]) // Success
+    );
+
+    // SELECT File with AID data
     this.responses.set(
       "00A4040008A000000003000000",
       new Uint8Array([0x90, 0x00]) // Success

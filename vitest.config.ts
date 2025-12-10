@@ -7,6 +7,7 @@ export default defineConfig({
       "tests/unit/**/*.test.ts",
       "tests/integration/**/*.test.ts",
       "tests/e2e/**/*.test.ts",
+      "packages/*/tests/**/*.test.ts",
     ],
     environment: "node",
     reporters: ["default"],

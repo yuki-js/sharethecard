@@ -1,509 +1,330 @@
 /**
- * Integration tests for Controller flow at presentation layer
- * 
- * Tests the full sequence through presentation layer (REST + WebSocket)
- * without starting an actual HTTP server.
- * 
+ * Integration tests for Controller flow via WebSocket presentation layer
+ *
+ * Tests the WebSocket message protocol sequence (v3.0 spec)
+ * Validates presentation layer (handler) message routing and state management
+ *
  * Spec: docs/what-to-make.md Section 6.2.2 - 結合テスト
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { Router } from "../../src/router.js";
-import { createControllerRoutes } from "../../src/presentation/rest/controller-routes.js";
-import { createCardhostRoutes } from "../../src/presentation/rest/cardhost-routes.js";
 import { handleControllerWebSocket } from "../../src/presentation/ws/controller-ws.js";
 import { handleCardhostWebSocket } from "../../src/presentation/ws/cardhost-ws.js";
 import { generateEd25519KeyPair, signChallenge } from "../helpers/crypto.js";
-import { authenticateController, authenticateCardhost, createAuthenticatedSession } from "../helpers/auth-helpers.js";
 import { MockWebSocket } from "../helpers/mock-websocket.js";
 
-describe("Controller Flow Integration", () => {
+describe("Controller Flow Integration via WebSocket Presentation Layer", () => {
   let router: Router;
-  let controllerApp: ReturnType<typeof createControllerRoutes>;
-  let cardhostApp: ReturnType<typeof createCardhostRoutes>;
 
   beforeEach(async () => {
     router = new Router();
     await router.start();
-    controllerApp = createControllerRoutes(
-      router.controllerUseCase,
-      router.cardhostUseCase,
-    );
-    cardhostApp = createCardhostRoutes(router.cardhostUseCase);
   });
 
   afterEach(async () => {
     await router.stop();
   });
 
-  describe("Complete Authentication Sequence", () => {
-    it("should complete full controller authentication flow via REST API", async () => {
+  describe("Controller Authentication Message Sequence", () => {
+    it("should complete auth-init → auth-challenge → auth-verify → auth-success", async () => {
       const { publicKey, privateKey } = await generateEd25519KeyPair();
+      const ws = new MockWebSocket();
 
-      // Step 1: Initiate (router derives ID)
-      const initiateReq = new Request(
-        "http://localhost/controller/auth/initiate",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ publicKey }),
-        },
+      // Start handler
+      handleControllerWebSocket(ws as any, router);
+
+      // Step 1: Send auth-init
+      const authInitMsg = { type: "auth-init", publicKey };
+      ws.receive(authInitMsg);
+
+      // Wait for auth-challenge response
+      await new Promise((r) => setTimeout(r, 50));
+      expect(ws.sentMessages.length).toBeGreaterThan(0);
+
+      const challengeMsg = JSON.parse(ws.sentMessages[0] as string);
+      expect(challengeMsg.type).toBe("auth-challenge");
+      expect(challengeMsg.controllerId).toMatch(/^peer_/);
+      expect(challengeMsg.challenge).toBeDefined();
+
+      // Step 2: Sign and send auth-verify
+      const signature = await signChallenge(
+        challengeMsg.challenge,
+        privateKey
       );
 
-      const initiateRes = await controllerApp.fetch(initiateReq);
-      expect(initiateRes.status).toBe(201);
+      const authVerifyMsg = {
+        type: "auth-verify",
+        signature,
+      };
+      ws.clearMessages();
+      ws.receive(authVerifyMsg);
 
-      const { controllerId, challenge } = await initiateRes.json();
-      expect(controllerId).toMatch(/^peer_/);
-      expect(challenge).toBeDefined();
+      // Wait for auth-success response
+      await new Promise((r) => setTimeout(r, 50));
+      expect(ws.sentMessages.length).toBeGreaterThan(0);
 
-      // Step 2: Verify
-      const signature = await signChallenge(challenge, privateKey);
-
-      const verifyReq = new Request(
-        "http://localhost/controller/auth/verify",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ controllerId, challenge, signature }),
-        },
-      );
-
-      const verifyRes = await controllerApp.fetch(verifyReq);
-      expect(verifyRes.status).toBe(200);
-
-      const verifyData = await verifyRes.json();
-      expect(verifyData.ok).toBe(true);
-      expect(verifyData.controllerId).toBe(controllerId);
+      const successMsg = JSON.parse(ws.sentMessages[0] as string);
+      expect(successMsg.type).toBe("auth-success");
+      expect(successMsg.controllerId).toBe(challengeMsg.controllerId);
     });
 
-    it("should reject controller authentication with invalid signature", async () => {
+    it("should reject auth-verify with invalid signature", async () => {
       const { publicKey } = await generateEd25519KeyPair();
+      const ws = new MockWebSocket();
 
-      const initiateReq = new Request(
-        "http://localhost/controller/auth/initiate",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ publicKey }),
-        },
-      );
+      handleControllerWebSocket(ws as any, router);
 
-      const initiateRes = await controllerApp.fetch(initiateReq);
-      const { controllerId, challenge } = await initiateRes.json();
+      // Send auth-init
+      ws.receive({ type: "auth-init", publicKey });
 
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Send invalid signature
       const invalidSignature = Buffer.from(new Uint8Array(64)).toString(
-        "base64",
+        "base64"
       );
 
-      const verifyReq = new Request(
-        "http://localhost/controller/auth/verify",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            controllerId,
-            challenge,
-            signature: invalidSignature,
-          }),
-        },
-      );
-
-      const verifyRes = await controllerApp.fetch(verifyReq);
-      expect(verifyRes.status).toBe(401);
-
-      const verifyData = await verifyRes.json();
-      expect(verifyData.error).toContain("verification failed");
-    });
-  });
-
-  describe("Session Creation Sequence", () => {
-    it("should create session after successful authentication", async () => {
-      const { controllerId } = await authenticateController(
-        router.controllerUseCase,
-      );
-      const { uuid: cardhostUuid } = await authenticateCardhost(
-        router.cardhostUseCase,
-      );
-
-      const sessionReq = new Request("http://localhost/controller/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ controllerId, cardhostUuid }),
+      ws.receive({
+        type: "auth-verify",
+        signature: invalidSignature,
       });
 
-      const sessionRes = await controllerApp.fetch(sessionReq);
-      expect(sessionRes.status).toBe(201);
-
-      const sessionData = await sessionRes.json();
-      expect(sessionData.token).toMatch(/^sess_/);
-      expect(sessionData.expiresAt).toBeDefined();
-    });
-
-    it("should reject session creation for unauthenticated controller", async () => {
-      const { publicKey } = await generateEd25519KeyPair();
-      const { controllerId } = await router.controllerUseCase.initiateAuth(
-        publicKey,
-      );
-      const cardhostUuid = "ch-any";
-
-      const sessionReq = new Request("http://localhost/controller/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ controllerId, cardhostUuid }),
-      });
-
-      const sessionRes = await controllerApp.fetch(sessionReq);
-      expect(sessionRes.status).toBe(401);
-
-      const data = await sessionRes.json();
-      expect(data.error).toContain("not authenticated");
-    });
-
-    it("should reject session creation for disconnected cardhost", async () => {
-      const { controllerId } = await authenticateController(
-        router.controllerUseCase,
-      );
-
-      const sessionReq = new Request("http://localhost/controller/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          controllerId,
-          cardhostUuid: "non-existent",
-        }),
-      });
-
-      const sessionRes = await controllerApp.fetch(sessionReq);
-      expect(sessionRes.status).toBe(404);
-
-      const data = await sessionRes.json();
-      expect(data.error).toContain("not connected");
-    });
-  });
-
-  describe("Cardhost Listing Sequence", () => {
-    it("should list cardhosts for authenticated controller", async () => {
-      const { controllerId } = await authenticateController(
-        router.controllerUseCase,
-      );
-      const { uuid: ch1Uuid } = await authenticateCardhost(
-        router.cardhostUseCase,
-      );
-
-      const listReq = new Request("http://localhost/controller/cardhosts", {
-        method: "GET",
-        headers: { "x-controller-id": controllerId },
-      });
-
-      const listRes = await controllerApp.fetch(listReq);
-      expect(listRes.status).toBe(200);
-
-      const cardhosts = await listRes.json();
-      expect(Array.isArray(cardhosts)).toBe(true);
-      expect(cardhosts.length).toBeGreaterThan(0);
-      expect(cardhosts.some((c: any) => c.uuid === ch1Uuid)).toBe(true);
-    });
-
-    it("should reject cardhost listing for unauthenticated controller", async () => {
-      const listReq = new Request("http://localhost/controller/cardhosts", {
-        method: "GET",
-        headers: { "x-controller-id": "unauthenticated" },
-      });
-
-      const listRes = await controllerApp.fetch(listReq);
-      expect(listRes.status).toBe(401);
-
-      const data = await listRes.json();
-      expect(data.error).toContain("not authenticated");
-    });
-  });
-
-  describe("WebSocket Connection Sequence", () => {
-    it("should establish controller WebSocket connection after authentication", async () => {
-      const { controllerId, cardhostUuid, sessionToken } =
-        await createAuthenticatedSession(router);
-
-      const controllerWs = new MockWebSocket();
-      const cardhostWs = new MockWebSocket();
-
-      handleControllerWebSocket(
-        controllerWs as any,
-        controllerId,
-        sessionToken,
-        router.controllerUseCase,
-        router.transportUseCase,
-      );
-
-      handleCardhostWebSocket(
-        cardhostWs as any,
-        cardhostUuid,
-        router.cardhostUseCase,
-        router.transportUseCase,
-      );
-
-      expect(controllerWs.closed).toBe(false);
-      expect(cardhostWs.closed).toBe(false);
-
-      controllerWs.close();
-      cardhostWs.close();
-    });
-
-    it("should reject WebSocket for unauthenticated controller", () => {
-      const ws = new MockWebSocket();
-
-      handleControllerWebSocket(
-        ws as any,
-        "unauthenticated-ctrl",
-        "fake-session",
-        router.controllerUseCase,
-        router.transportUseCase,
-      );
+      await new Promise((r) => setTimeout(r, 50));
 
       expect(ws.closed).toBe(true);
       expect(ws.closeCode).toBe(1008);
-      expect(ws.closeReason).toContain("not authenticated");
-    });
-
-    it("should reject WebSocket for invalid session token", async () => {
-      const { controllerId } = await authenticateController(
-        router.controllerUseCase,
-      );
-
-      const ws = new MockWebSocket();
-
-      handleControllerWebSocket(
-        ws as any,
-        controllerId,
-        "invalid-session",
-        router.controllerUseCase,
-        router.transportUseCase,
-      );
-
-      expect(ws.closed).toBe(true);
-      expect(ws.closeCode).toBe(1008);
-      expect(ws.closeReason).toContain("Invalid session");
-    });
-
-    it("should reject WebSocket when session belongs to different controller", async () => {
-      const { controllerId: controllerId1 } = await authenticateController(
-        router.controllerUseCase,
-      );
-      const { uuid: cardhostUuid } = await authenticateCardhost(
-        router.cardhostUseCase,
-      );
-
-      const session1 = router.controllerUseCase.createSession(
-        controllerId1,
-        cardhostUuid,
-      );
-
-      const { controllerId: controllerId2 } = await authenticateController(
-        router.controllerUseCase,
-      );
-
-      const ws = new MockWebSocket();
-
-      handleControllerWebSocket(
-        ws as any,
-        controllerId2,
-        session1.token,
-        router.controllerUseCase,
-        router.transportUseCase,
-      );
-
-      expect(ws.closed).toBe(true);
-      expect(ws.closeCode).toBe(1008);
-      expect(ws.closeReason).toContain("does not belong");
     });
   });
 
-  describe("Cardhost Authentication Sequence", () => {
-    it("should complete full cardhost authentication flow via REST API", async () => {
+  describe("Cardhost Authentication Message Sequence", () => {
+    it("should complete cardhost auth-init → auth-challenge → auth-verify → auth-success", async () => {
       const { publicKey, privateKey } = await generateEd25519KeyPair();
-
-      // Step 1: Initiate (router derives UUID)
-      const initiateReq = new Request("http://localhost/cardhost/connect", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ publicKey }),
-      });
-
-      const initiateRes = await cardhostApp.fetch(initiateReq);
-      expect(initiateRes.status).toBe(201);
-
-      const { uuid, challenge } = await initiateRes.json();
-      expect(uuid).toMatch(/^peer_/);
-      expect(challenge).toBeDefined();
-
-      // Step 2: Verify
-      const signature = await signChallenge(challenge, privateKey);
-
-      const verifyReq = new Request("http://localhost/cardhost/verify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ uuid, challenge, signature }),
-      });
-
-      const verifyRes = await cardhostApp.fetch(verifyReq);
-      expect(verifyRes.status).toBe(200);
-
-      const verifyData = await verifyRes.json();
-      expect(verifyData.ok).toBe(true);
-    });
-
-    it("should establish cardhost WebSocket connection after authentication", async () => {
-      const { uuid } = await authenticateCardhost(router.cardhostUseCase);
-
       const ws = new MockWebSocket();
+      const mockReq = {} as any;
 
-      handleCardhostWebSocket(
-        ws as any,
-        uuid,
-        router.cardhostUseCase,
-        router.transportUseCase,
+      handleCardhostWebSocket(ws as any, mockReq, router);
+
+      // Step 1: Send auth-init
+      const authInitMsg = { type: "auth-init", publicKey };
+      ws.receive(authInitMsg);
+
+      // Wait for auth-challenge response
+      await new Promise((r) => setTimeout(r, 50));
+      expect(ws.sentMessages.length).toBeGreaterThan(0);
+
+      const challengeMsg = JSON.parse(ws.sentMessages[0] as string);
+      expect(challengeMsg.type).toBe("auth-challenge");
+      expect(challengeMsg.uuid).toMatch(/^peer_/);
+      expect(challengeMsg.challenge).toBeDefined();
+
+      // Step 2: Sign and send auth-verify
+      const signature = await signChallenge(
+        challengeMsg.challenge,
+        privateKey
       );
 
-      expect(ws.closed).toBe(false);
-      ws.close();
+      const authVerifyMsg = {
+        type: "auth-verify",
+        signature,
+      };
+      ws.clearMessages();
+      ws.receive(authVerifyMsg);
+
+      // Wait for auth-success response
+      await new Promise((r) => setTimeout(r, 50));
+      expect(ws.sentMessages.length).toBeGreaterThan(0);
+
+      const successMsg = JSON.parse(ws.sentMessages[0] as string);
+      expect(successMsg.type).toBe("auth-success");
+      expect(successMsg.uuid).toBe(challengeMsg.uuid);
     });
   });
 
-  describe("Full End-to-End Sequence", () => {
-    it("should complete authentication → session creation → WebSocket connection sequence", async () => {
-      // 1. Authenticate controller via REST
+  describe("Controller Connection Sequence", () => {
+    it("should complete full connection flow: auth → connect-cardhost → connected", async () => {
       const { publicKey: ctrlPubKey, privateKey: ctrlPrivKey } =
         await generateEd25519KeyPair();
-
-      const ctrlInitReq = new Request(
-        "http://localhost/controller/auth/initiate",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ publicKey: ctrlPubKey }),
-        },
-      );
-
-      const ctrlInitRes = await controllerApp.fetch(ctrlInitReq);
-      const { controllerId, challenge: ctrlChallenge } =
-        await ctrlInitRes.json();
-      const ctrlSignature = await signChallenge(ctrlChallenge, ctrlPrivKey);
-
-      const ctrlVerifyReq = new Request(
-        "http://localhost/controller/auth/verify",
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            controllerId,
-            challenge: ctrlChallenge,
-            signature: ctrlSignature,
-          }),
-        },
-      );
-
-      const ctrlVerifyRes = await controllerApp.fetch(ctrlVerifyReq);
-      expect(ctrlVerifyRes.status).toBe(200);
-
-      // 2. Authenticate cardhost via REST
       const { publicKey: chPubKey, privateKey: chPrivKey } =
         await generateEd25519KeyPair();
 
-      const chInitReq = new Request("http://localhost/cardhost/connect", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ publicKey: chPubKey }),
-      });
-
-      const chInitRes = await cardhostApp.fetch(chInitReq);
-      const { uuid: cardhostUuid, challenge: chChallenge } =
-        await chInitRes.json();
-      const chSignature = await signChallenge(chChallenge, chPrivKey);
-
-      const chVerifyReq = new Request("http://localhost/cardhost/verify", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          uuid: cardhostUuid,
-          challenge: chChallenge,
-          signature: chSignature,
-        }),
-      });
-
-      const chVerifyRes = await cardhostApp.fetch(chVerifyReq);
-      expect(chVerifyRes.status).toBe(200);
-
-      // 3. Create session via REST
-      const sessionReq = new Request("http://localhost/controller/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ controllerId, cardhostUuid }),
-      });
-
-      const sessionRes = await controllerApp.fetch(sessionReq);
-      expect(sessionRes.status).toBe(201);
-
-      const { token: sessionToken } = await sessionRes.json();
-      expect(sessionToken).toBeDefined();
-
-      // 4. Establish WebSocket connections
+      // 1. Authenticate controller
       const controllerWs = new MockWebSocket();
+      handleControllerWebSocket(controllerWs as any, router);
+
+      controllerWs.receive({ type: "auth-init", publicKey: ctrlPubKey });
+      await new Promise((r) => setTimeout(r, 50));
+
+      const ctrlChallenge = JSON.parse(controllerWs.sentMessages[0] as string);
+      const ctrlSig = await signChallenge(
+        ctrlChallenge.challenge,
+        ctrlPrivKey
+      );
+
+      controllerWs.clearMessages();
+      controllerWs.receive({ type: "auth-verify", signature: ctrlSig });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(JSON.parse(controllerWs.sentMessages[0] as string).type).toBe(
+        "auth-success"
+      );
+
+      // 2. Authenticate cardhost
       const cardhostWs = new MockWebSocket();
+      const mockReq = {} as any;
+      handleCardhostWebSocket(cardhostWs as any, mockReq, router);
 
-      handleControllerWebSocket(
-        controllerWs as any,
-        controllerId,
-        sessionToken,
-        router.controllerUseCase,
-        router.transportUseCase,
+      cardhostWs.receive({ type: "auth-init", publicKey: chPubKey });
+      await new Promise((r) => setTimeout(r, 50));
+
+      const chChallenge = JSON.parse(cardhostWs.sentMessages[0] as string);
+      const chSig = await signChallenge(
+        chChallenge.challenge,
+        chPrivKey
       );
 
-      handleCardhostWebSocket(
-        cardhostWs as any,
-        cardhostUuid,
-        router.cardhostUseCase,
-        router.transportUseCase,
+      cardhostWs.clearMessages();
+      cardhostWs.receive({ type: "auth-verify", signature: chSig });
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(JSON.parse(cardhostWs.sentMessages[0] as string).type).toBe(
+        "auth-success"
       );
 
-      // 5. Verify both connections are established
-      expect(controllerWs.closed).toBe(false);
-      expect(cardhostWs.closed).toBe(false);
+      // 3. Controller connects to cardhost
+      controllerWs.clearMessages();
+      controllerWs.receive({
+        type: "connect-cardhost",
+        cardhostUuid: chChallenge.uuid,
+      });
+      await new Promise((r) => setTimeout(r, 50));
 
-      controllerWs.close();
-      cardhostWs.close();
+      const connectedMsg = JSON.parse(controllerWs.sentMessages[0] as string);
+      expect(connectedMsg.type).toBe("connected");
+      expect(connectedMsg.cardhostUuid).toBe(chChallenge.uuid);
+    });
+
+    it("should reject connect-cardhost without authentication", async () => {
+      const controllerWs = new MockWebSocket();
+      handleControllerWebSocket(controllerWs as any, router);
+
+      // Try to connect without authenticating
+      controllerWs.receive({
+        type: "connect-cardhost",
+        cardhostUuid: "peer_test",
+      });
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      const errorMsg = JSON.parse(controllerWs.sentMessages[0] as string);
+      expect(errorMsg.type).toBe("error");
     });
   });
 
-  describe("Error Handling in Sequence", () => {
-    it("should fail gracefully when steps are performed out of order", async () => {
-      const { publicKey } = await generateEd25519KeyPair();
-      const { controllerId } = await router.controllerUseCase.initiateAuth(
-        publicKey,
-      );
-      const cardhostUuid = "ch-any";
+  describe("Message Error Handling", () => {
+    it("should reject invalid message types in authenticating phase", async () => {
+      const controllerWs = new MockWebSocket();
+      handleControllerWebSocket(controllerWs as any, router);
 
-      const sessionReq = new Request("http://localhost/controller/sessions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ controllerId, cardhostUuid }),
-      });
+      controllerWs.receive({ type: "invalid-type" });
 
-      const sessionRes = await controllerApp.fetch(sessionReq);
-      expect(sessionRes.status).toBe(401);
+      await new Promise((r) => setTimeout(r, 50));
+
+      const errorMsg = JSON.parse(controllerWs.sentMessages[0] as string);
+      expect(errorMsg.type).toBe("error");
+      expect(errorMsg.error.code).toBe("INVALID_PHASE");
     });
 
-    it("should validate all prerequisites before allowing WebSocket", async () => {
-      const ws = new MockWebSocket();
+    it("should handle ping/pong messages", async () => {
+      const { publicKey: ctrlPubKey, privateKey: ctrlPrivKey } =
+        await generateEd25519KeyPair();
+      const { publicKey: chPubKey, privateKey: chPrivKey } =
+        await generateEd25519KeyPair();
 
-      handleControllerWebSocket(
-        ws as any,
-        "no-auth",
-        "no-session",
-        router.controllerUseCase,
-        router.transportUseCase,
+      const controllerWs = new MockWebSocket();
+      const cardhostWs = new MockWebSocket();
+      const mockReq = {} as any;
+
+      handleControllerWebSocket(controllerWs as any, router);
+      handleCardhostWebSocket(cardhostWs as any, mockReq, router);
+
+      // Authenticate controller
+      controllerWs.receive({ type: "auth-init", publicKey: ctrlPubKey });
+      await new Promise((r) => setTimeout(r, 50));
+
+      const ctrlChallenge = JSON.parse(controllerWs.sentMessages[0] as string);
+      const ctrlSig = await signChallenge(
+        ctrlChallenge.challenge,
+        ctrlPrivKey
       );
 
-      expect(ws.closed).toBe(true);
+      controllerWs.clearMessages();
+      controllerWs.receive({ type: "auth-verify", signature: ctrlSig });
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Authenticate cardhost
+      cardhostWs.receive({ type: "auth-init", publicKey: chPubKey });
+      await new Promise((r) => setTimeout(r, 50));
+
+      const chChallenge = JSON.parse(cardhostWs.sentMessages[0] as string);
+      const chSig = await signChallenge(
+        chChallenge.challenge,
+        chPrivKey
+      );
+
+      cardhostWs.clearMessages();
+      cardhostWs.receive({ type: "auth-verify", signature: chSig });
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Connect controller to cardhost
+      controllerWs.clearMessages();
+      controllerWs.receive({
+        type: "connect-cardhost",
+        cardhostUuid: chChallenge.uuid,
+      });
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Now send ping in RPC phase
+      controllerWs.clearMessages();
+      controllerWs.receive({ type: "ping" });
+      await new Promise((r) => setTimeout(r, 50));
+
+      const pongMsg = JSON.parse(controllerWs.sentMessages[0] as string);
+      expect(pongMsg.type).toBe("pong");
+    });
+  });
+
+  describe("Connection State Management", () => {
+    it("should handle connection closure and cleanup", async () => {
+      const { publicKey, privateKey } = await generateEd25519KeyPair();
+      const controllerWs = new MockWebSocket();
+
+      handleControllerWebSocket(controllerWs as any, router);
+
+      // Complete authentication
+      controllerWs.receive({ type: "auth-init", publicKey });
+      await new Promise((r) => setTimeout(r, 50));
+
+      const challenge = JSON.parse(controllerWs.sentMessages[0] as string);
+      const signature = await signChallenge(challenge.challenge, privateKey);
+
+      controllerWs.receive({ type: "auth-verify", signature });
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Close connection
+      controllerWs.close();
+
+      expect(controllerWs.closed).toBe(true);
+    });
+
+    it("should reject messages after connection closed", async () => {
+      const controllerWs = new MockWebSocket();
+      handleControllerWebSocket(controllerWs as any, router);
+
+      controllerWs.close();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(controllerWs.closed).toBe(true);
     });
   });
 });

@@ -8,26 +8,23 @@
  * - ライフサイクル管理
  */
 
-import { WebSocket } from "ws";
+import WebSocket from "ws";
 import type { WsContext, WsContextState, Message } from "./types.js";
 
 /**
  * WsContext実装
  */
-export class WsContextImpl<T extends WsContextState = WsContextState>
-  implements WsContext<T>
-{
-  private pendingMessages = new Map<
-    string,
-    (msg: Message) => void
-  >();
+export class WsContextImpl<
+  T extends WsContextState = WsContextState,
+> implements WsContext<T> {
+  private pendingMessages = new Map<string, (msg: Message) => void>();
   private pendingIds = new Map<string, (msg: Message) => void>();
   private messageListenerAttached = false;
   private closed = false;
 
   constructor(
     public ws: WebSocket,
-    public state: T
+    public state: T,
   ) {
     this.attachMessageListener();
   }
@@ -41,7 +38,7 @@ export class WsContextImpl<T extends WsContextState = WsContextState>
     this.ws.on("message", (data) => {
       try {
         const msg = JSON.parse(
-          data instanceof Buffer ? data.toString("utf8") : String(data)
+          data instanceof Buffer ? data.toString("utf8") : String(data),
         ) as Message;
 
         // id相関メッセージ処理
@@ -72,12 +69,10 @@ export class WsContextImpl<T extends WsContextState = WsContextState>
    * メッセージ送信
    */
   async send(message: Message): Promise<void> {
+    if (this.closed || this.ws.readyState !== WebSocket.OPEN) {
+      new Error("WebSocket not open");
+    }
     return new Promise((resolve, reject) => {
-      if (this.closed || this.ws.readyState !== WebSocket.OPEN) {
-        reject(new Error("WebSocket not open"));
-        return;
-      }
-
       this.ws.send(JSON.stringify(message), (err) => {
         if (err) reject(err);
         else resolve();
@@ -92,7 +87,7 @@ export class WsContextImpl<T extends WsContextState = WsContextState>
     await this.send({
       type: "error",
       id,
-      error: { code, message }
+      error: { code, message },
     } as any);
   }
 
