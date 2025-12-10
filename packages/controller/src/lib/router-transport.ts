@@ -104,12 +104,13 @@ export class WsAuthenticator {
       const checkInterval = setInterval(() => {
         if (this.authenticated && this.connected) {
           clearInterval(checkInterval);
+          clearTimeout(timeoutHandle);
           resolve(this.controllerId!);
         }
       }, 100);
 
-      // タイムアウト
-      setTimeout(() => {
+      // タイムアウト（10秒）
+      const timeoutHandle = setTimeout(() => {
         clearInterval(checkInterval);
         if (!this.connected) {
           reject(new Error("Connection timeout"));

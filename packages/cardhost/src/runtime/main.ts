@@ -12,7 +12,6 @@ import {
   ConfigManager,
   MockSmartCardPlatform,
 } from "../lib/index.js";
-
 import { PcscPlatformManager } from "@aokiapp/jsapdu-pcsc";
 
 /**
@@ -72,9 +71,14 @@ async function main(): Promise<void> {
   console.log(`Platform: ${useMock ? "Mock" : "PC/SC"}`);
 
   // Create service with optional mock platform
-  const platform = useMock
-    ? new MockSmartCardPlatform()
-    : PcscPlatformManager.getInstance().getPlatform();
+  let platform;
+  if (useMock) {
+    platform = new MockSmartCardPlatform();
+  } else {
+    // Dynamically import PC/SC only when needed (avoids loading native libraries in test mode)
+    const { PcscPlatformManager } = await import("@aokiapp/jsapdu-pcsc");
+    platform = PcscPlatformManager.getInstance().getPlatform();
+  }
 
   const service = new CardhostService({
     routerUrl,
@@ -84,7 +88,7 @@ async function main(): Promise<void> {
 
   // Connect to Router
   try {
-    await service.connect();
+    await service.connect(routerUrl);
     console.log(`✓ Connected to Router`);
     console.log(`✓ Cardhost UUID: ${service.getUuid()}`);
     console.log(`✓ Ready to serve APDU requests`);

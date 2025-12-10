@@ -50,6 +50,77 @@ class MockSmartCard extends SmartCard {
     private responses: Map<string, Uint8Array> = new Map(),
   ) {
     super(parentDevice);
+    // デフォルトレスポンスを設定
+    this.setupDefaultResponses();
+  }
+
+  /**
+   * テスト用のデフォルトレスポンスを設定
+   */
+  private setupDefaultResponses(): void {
+    // SELECT File (00 A4 04 00 08 A0 00 00 00 03 00 00 00)
+    this.responses.set(
+      "00A4040008A000000003000000",
+      new Uint8Array([0x90, 0x00]) // Success
+    );
+
+    // GET DATA (00 CA 00 00 00)
+    this.responses.set(
+      "00CA000000",
+      new Uint8Array([
+        // Data: "MOCK" in ASCII
+        0x4D, 0x4F, 0x43, 0x4B,
+        // SW: 9000
+        0x90, 0x00
+      ])
+    );
+
+    // READ BINARY (00 B0 00 00 10) - Read 16 bytes
+    this.responses.set(
+      "00B0000010",
+      new Uint8Array([
+        // 16 bytes of test data
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+        0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+        // SW: 9000
+        0x90, 0x00
+      ])
+    );
+
+    // VERIFY PIN incorrect (00 20 00 00 04 31 32 33 34) - Returns 63CX (X retries left)
+    this.responses.set(
+      "002000000431323334",
+      new Uint8Array([0x63, 0xC2]) // 2 retries left
+    );
+
+    // GET CHALLENGE (00 84 00 00 08) - Returns 8 random bytes
+    this.responses.set(
+      "0084000008",
+      new Uint8Array([
+        // 8 random bytes
+        0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89,
+        // SW: 9000
+        0x90, 0x00
+      ])
+    );
+
+    // File not found (00 A4 00 00 02 FF FF)
+    this.responses.set(
+      "00A4000002FFFF",
+      new Uint8Array([0x6A, 0x82]) // File not found
+    );
+
+    // Wrong length (00 C0 00 00 00) - Get Response with wrong Le
+    this.responses.set(
+      "00C0000000",
+      new Uint8Array([0x6C, 0x10]) // Correct length is 0x10
+    );
+
+    // Security not satisfied (00 D0 00 00 04 01 02 03 04)
+    this.responses.set(
+      "00D000000401020304",
+      new Uint8Array([0x69, 0x82]) // Security status not satisfied
+    );
   }
 
   async getAtr(): Promise<Uint8Array> {
