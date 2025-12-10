@@ -27,7 +27,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmSync } from "node:fs";
 
-describe("E2E: Real network end-to-end (HTTP+WS, single process)", () => {
+describe.sequential("E2E: Real network end-to-end", () => {
   const HOST = "127.0.0.1";
   const PORT = 31101; // dedicated test port
   const BASE_URL = `http://${HOST}:${PORT}`;
