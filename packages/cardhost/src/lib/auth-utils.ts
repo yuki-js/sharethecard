@@ -6,51 +6,11 @@
  */
 
 const crypto = globalThis.crypto;
-import { canonicalizeJson, createLogger } from "../../../shared/src/index.js";
+import { createLogger, fromBase64, toBase64, prepareSigningPayload, deriveIdFromPublicKeyHash } from "../../../shared/src/index.js";
 
 const logger = createLogger("cardhost:auth-utils");
 
-function toBase64(bytes: Uint8Array): string {
-  if (typeof btoa === "function") {
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return BufferCtor.from(bytes).toString("base64");
-  }
-  // Fallback: encode manually if no Buffer (unlikely)
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
 
-function fromBase64(base64: string): Uint8Array {
-  if (typeof atob === "function") {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return new Uint8Array(BufferCtor.from(base64, "base64"));
-  }
-  // Fallback: decode manually if no Buffer (unlikely)
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
 
 /**
  * Verify that Router-derived UUID matches public key hash
@@ -61,16 +21,9 @@ export async function verifyDerivedUuid(
   publicKeyBase64: string,
 ): Promise<void> {
   try {
-    const publicKeyBytes = fromBase64(publicKeyBase64);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", publicKeyBytes.buffer as ArrayBuffer);
-
-    const base64 = toBase64(new Uint8Array(hashBuffer));
-    const base64url = base64
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");
-
-    const expectedUuid = `peer_${base64url}`;
+    // TODO: Replace base64url-derived ID with RFC 4122 UUID (e.g., v5 deterministic). See shared utils.
+    // Temporary derivation centralized in shared utils
+    const expectedUuid = await deriveIdFromPublicKeyHash(publicKeyBase64);
 
     if (derivedUuid !== expectedUuid) {
       logger.error("UUID verification failed", undefined, {
@@ -107,7 +60,7 @@ export async function signChallenge(
   );
 
   // Create canonical payload
-  const payload = canonicalizeJson(challenge);
+  const payload = prepareSigningPayload(challenge);
 
   // Sign
   const signature = await crypto.subtle.sign(

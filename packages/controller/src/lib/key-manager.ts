@@ -10,55 +10,12 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 const crypto = globalThis.crypto;
-import { createLogger } from "../../../shared/src/index.js";
+import { createLogger, toBase64, fromBase64, toUtf8, exportEd25519KeyPair, prepareSigningPayload, deriveIdFromPublicKeyHash } from "../../../shared/src/index.js";
 
 const logger = createLogger("controller:keys");
 
-function toBase64(bytes: Uint8Array): string {
-  if (typeof btoa === "function") {
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return BufferCtor.from(bytes).toString("base64");
-  }
-  // Fallback: encode manually if no Buffer (unlikely)
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
 
-function fromBase64(base64: string): Uint8Array {
-  if (typeof atob === "function") {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return new Uint8Array(BufferCtor.from(base64, "base64"));
-  }
-  // Fallback: decode manually if no Buffer (unlikely)
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
 
-function toUtf8(text: string): Uint8Array {
-  return new TextEncoder().encode(text);
-}
 
 export interface ControllerKeyPair {
   publicKey: string; // SPKI format, base64-encoded
@@ -154,17 +111,8 @@ export class KeyManager {
       )) as CryptoKeyPair;
 
       // Export keys
-      const publicKeySpki = await crypto.subtle.exportKey(
-        "spki",
-        keyPair.publicKey,
-      );
-      const privateKeyPkcs8 = await crypto.subtle.exportKey(
-        "pkcs8",
-        keyPair.privateKey,
-      );
-
-      const publicKey = toBase64(new Uint8Array(publicKeySpki));
-      const privateKeyBase64 = toBase64(new Uint8Array(privateKeyPkcs8));
+      const { publicKey, privateKey } = await exportEd25519KeyPair(keyPair);
+      const privateKeyBase64 = privateKey;
 
       // Save to disk with restricted permissions
       writeFileSync(this.publicKeyPath, publicKey, { mode: 0o644 });
@@ -194,7 +142,7 @@ export class KeyManager {
     }
 
     // Canonical JSON payload (matches Router's verification)
-    const payload = toUtf8(JSON.stringify(challenge));
+    const payload = prepareSigningPayload(challenge);
 
     const signature = await crypto.subtle.sign(
       { name: "Ed25519" },
@@ -235,16 +183,8 @@ export class KeyManager {
   ): Promise<void> {
     logger.debug("Verifying Controller ID", { controllerId });
     
-    const publicKeyBytes = fromBase64(publicKey);
-    const hashBuffer = await crypto.subtle.digest("SHA-256", publicKeyBytes.buffer as ArrayBuffer);
-    
-    const base64 = toBase64(new Uint8Array(hashBuffer));
-    const base64url = base64
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=/g, "");
-    
-    const expectedId = `peer_${base64url}`;
+    // TODO: Replace base64url-derived Controller ID with RFC 4122 UUID (e.g., v5 deterministic). See shared utils.
+    const expectedId = await deriveIdFromPublicKeyHash(publicKey);
     
     if (controllerId !== expectedId) {
       logger.error("Controller ID verification failed", undefined, {

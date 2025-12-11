@@ -12,47 +12,7 @@
 
 const crypto = globalThis.crypto;
 
-function toBase64(bytes: Uint8Array): string {
-  if (typeof btoa === "function") {
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return BufferCtor.from(bytes).toString("base64");
-  }
-  // Fallback: encode manually if no Buffer (unlikely)
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function fromBase64(base64: string): Uint8Array {
-  if (typeof atob === "function") {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return new Uint8Array(BufferCtor.from(base64, "base64"));
-  }
-  // Fallback: decode manually if no Buffer (unlikely)
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
+import { deriveIdFromPublicKeyHash } from "@remote-apdu/shared";
 
 /**
  * Generate peer ID from public key using SHA-256
@@ -62,19 +22,8 @@ function fromBase64(base64: string): Uint8Array {
  * @returns Deterministic peer ID derived from public key
  */
 export async function generatePeerId(publicKeyBase64: string): Promise<string> {
-  const publicKeyBytes = fromBase64(publicKeyBase64);
-  
-  // Hash the public key
-  const hashBuffer = await crypto.subtle.digest("SHA-256", publicKeyBytes.buffer as ArrayBuffer);
-  
-  // Convert to base64url (URL-safe)
-  const base64 = toBase64(new Uint8Array(hashBuffer));
-  const base64url = base64
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=/g, "");
-  
-  return `peer_${base64url}`;
+  // TODO: Replace base64url-derived peer ID with RFC 4122 UUID (e.g., v5 deterministic). See shared utils.
+  return await deriveIdFromPublicKeyHash(publicKeyBase64);
 }
 
 /**

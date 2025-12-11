@@ -4,62 +4,16 @@
  */
 
 const crypto = globalThis.crypto;
-
-function toBase64(bytes: Uint8Array): string {
-  if (typeof btoa === "function") {
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return BufferCtor.from(bytes).toString("base64");
-  }
-  // Fallback: encode manually if no Buffer (unlikely)
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function fromBase64(base64: string): Uint8Array {
-  if (typeof atob === "function") {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return new Uint8Array(BufferCtor.from(base64, "base64"));
-  }
-  // Fallback: decode manually if no Buffer (unlikely)
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-function toUtf8(text: string): Uint8Array {
-  return new TextEncoder().encode(text);
-}
+import { toBase64, fromBase64, toUtf8 } from "@remote-apdu/shared";
 
 /**
  * Generate Ed25519 keypair for testing
  */
 export async function generateEd25519KeyPair() {
-  const keyPair = (await crypto.subtle.generateKey(
-    { name: "Ed25519" },
-    true,
-    ["sign", "verify"],
-  )) as CryptoKeyPair;
+  const keyPair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
+    "sign",
+    "verify",
+  ])) as CryptoKeyPair;
 
   const publicKeySpki = await crypto.subtle.exportKey(
     "spki",

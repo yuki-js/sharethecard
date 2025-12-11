@@ -5,28 +5,7 @@
 
 const crypto = globalThis.crypto;
 
-function fromBase64(base64: string): Uint8Array {
-  if (typeof atob === "function") {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes;
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return new Uint8Array(BufferCtor.from(base64, "base64"));
-  }
-  // Fallback: decode manually if no Buffer (unlikely)
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-import { canonicalizeJson } from "@remote-apdu/shared";
+import { fromBase64, prepareSigningPayload } from "@remote-apdu/shared";
 
 /**
  * Verify Ed25519 signature using webcrypto
@@ -53,7 +32,7 @@ export async function verifyEd25519Signature(
     );
 
     // Canonical payload (must match signer's canonicalization)
-    const payload = canonicalizeJson(challenge);
+    const payload = prepareSigningPayload(challenge);
 
     // Verify signature
     const signature = fromBase64(signatureBase64);

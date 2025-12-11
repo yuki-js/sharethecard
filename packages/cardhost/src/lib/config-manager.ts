@@ -9,27 +9,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 const crypto = globalThis.crypto;
-import { generateUuidV4 } from "@remote-apdu/shared";
+import { generateUuidV4, toBase64 } from "@remote-apdu/shared";
 
-function toBase64(bytes: Uint8Array): string {
-  if (typeof btoa === "function") {
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  }
-  const BufferCtor = (globalThis as any).Buffer;
-  if (BufferCtor) {
-    return BufferCtor.from(bytes).toString("base64");
-  }
-  // Fallback: encode manually if no Buffer (unlikely)
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
 
 export interface CardHostPersistedConfig {
   uuid: string; // Router-derived UUID (peer_<hash>)
