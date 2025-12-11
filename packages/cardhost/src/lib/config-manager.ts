@@ -8,8 +8,28 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { webcrypto } from "node:crypto";
+const crypto = globalThis.crypto;
 import { generateUuidV4 } from "@remote-apdu/shared";
+
+function toBase64(bytes: Uint8Array): string {
+  if (typeof btoa === "function") {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(bytes).toString("base64");
+  }
+  // Fallback: encode manually if no Buffer (unlikely)
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 export interface CardHostPersistedConfig {
   uuid: string; // Router-derived UUID (peer_<hash>)
@@ -81,24 +101,24 @@ export class ConfigManager {
     routerUrl?: string,
   ): Promise<CardHostPersistedConfig> {
     // Generate Ed25519 keypair for signing (Cardhost authentication)
-    const keyPair = (await webcrypto.subtle.generateKey(
+    const keyPair = (await crypto.subtle.generateKey(
       { name: "Ed25519" },
       true,
       ["sign", "verify"],
     )) as CryptoKeyPair;
 
     // Export keys in SPKI/PKCS8 format
-    const publicKeySpki = await webcrypto.subtle.exportKey(
+    const publicKeySpki = await crypto.subtle.exportKey(
       "spki",
       keyPair.publicKey,
     );
-    const privateKeyPkcs8 = await webcrypto.subtle.exportKey(
+    const privateKeyPkcs8 = await crypto.subtle.exportKey(
       "pkcs8",
       keyPair.privateKey,
     );
 
-    const signingPublicKey = Buffer.from(publicKeySpki).toString("base64");
-    const signingPrivateKey = Buffer.from(privateKeyPkcs8).toString("base64");
+    const signingPublicKey = toBase64(new Uint8Array(publicKeySpki));
+    const signingPrivateKey = toBase64(new Uint8Array(privateKeyPkcs8));
 
     // Temporary placeholder UUID - will be replaced by Router-derived UUID on first auth
     const placeholderUuid = "pending-router-derivation";
@@ -107,7 +127,11 @@ export class ConfigManager {
       uuid: placeholderUuid,
       signingPublicKey,
       signingPrivateKey,
-      routerUrl: routerUrl ?? process.env.ROUTER_URL ?? "http://localhost:3000",
+      routerUrl:
+        routerUrl ??
+        ((typeof (globalThis as any).process !== "undefined" &&
+          (globalThis as any).process?.env?.ROUTER_URL) ??
+          "http://localhost:3000"),
       createdAt: new Date().toISOString(),
       uuidSource: "router-derived",
     };

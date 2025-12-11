@@ -17,7 +17,7 @@
  */
 export function canonicalizeJson(input: unknown): Uint8Array {
   const canonical = JSON.stringify(sortKeys(input));
-  return new Uint8Array(Buffer.from(canonical, "utf8"));
+  return new TextEncoder().encode(canonical);
 }
 
 /**

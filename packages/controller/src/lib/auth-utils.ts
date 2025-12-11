@@ -5,10 +5,52 @@
  * これらのユーティリティは router-transport.ts で使用される
  */
 
-import { webcrypto } from "node:crypto";
-import { canonicalizeJson, createLogger } from "@remote-apdu/shared";
+const crypto = globalThis.crypto;
+import { canonicalizeJson, createLogger } from "../../../shared/src/index.js";
 
 const logger = createLogger("controller:auth-utils");
+
+function toBase64(bytes: Uint8Array): string {
+  if (typeof btoa === "function") {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(bytes).toString("base64");
+  }
+  // Fallback: encode manually if no Buffer (unlikely)
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function fromBase64(base64: string): Uint8Array {
+  if (typeof atob === "function") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return new Uint8Array(BufferCtor.from(base64, "base64"));
+  }
+  // Fallback: decode manually if no Buffer (unlikely)
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 /**
  * Verify that Router-derived Controller ID matches public key hash
@@ -19,10 +61,10 @@ export async function verifyDerivedControllerId(
   publicKeyBase64: string,
 ): Promise<void> {
   try {
-    const publicKeyBytes = Buffer.from(publicKeyBase64, "base64");
-    const hashBuffer = await webcrypto.subtle.digest("SHA-256", publicKeyBytes);
+    const publicKeyBytes = fromBase64(publicKeyBase64);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", publicKeyBytes.buffer as ArrayBuffer);
 
-    const base64 = Buffer.from(hashBuffer).toString("base64");
+    const base64 = toBase64(new Uint8Array(hashBuffer));
     const base64url = base64
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
@@ -55,10 +97,10 @@ export async function signChallenge(
   privateKeyBase64: string,
 ): Promise<string> {
   // Import private key
-  const privateKeyDer = Buffer.from(privateKeyBase64, "base64");
-  const privateKey = await webcrypto.subtle.importKey(
+  const privateKeyDer = fromBase64(privateKeyBase64);
+  const privateKey = await crypto.subtle.importKey(
     "pkcs8",
-    privateKeyDer,
+    privateKeyDer.buffer as ArrayBuffer,
     { name: "Ed25519" },
     false,
     ["sign"],
@@ -68,11 +110,11 @@ export async function signChallenge(
   const payload = canonicalizeJson(challenge);
 
   // Sign
-  const signature = await webcrypto.subtle.sign(
+  const signature = await crypto.subtle.sign(
     { name: "Ed25519" },
     privateKey,
-    payload,
+    payload.buffer as ArrayBuffer,
   );
 
-  return Buffer.from(signature).toString("base64");
+  return toBase64(new Uint8Array(signature));
 }

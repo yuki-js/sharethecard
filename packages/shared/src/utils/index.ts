@@ -2,7 +2,33 @@
  * Shared utility functions for Remote APDU System
  */
 
-import { webcrypto } from "node:crypto";
+/**
+ * WebCrypto: use global in both Node.js (>=15) and Browsers
+ */
+const crypto = globalThis.crypto;
+
+/**
+ * Base64 encode helper (browser-first, Node fallback)
+ */
+export function toBase64(bytes: Uint8Array): string {
+  if (typeof btoa === "function") {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(bytes).toString("base64");
+  }
+  // Fallback: encode manually if no Buffer (unlikely)
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 /**
  * Generate a UUID v4 (128-bit)
@@ -10,7 +36,7 @@ import { webcrypto } from "node:crypto";
  */
 export function generateUuidV4(): string {
   const bytes = new Uint8Array(16);
-  webcrypto.getRandomValues(bytes);
+  crypto.getRandomValues(bytes);
 
   // RFC 4122 v4 variant
   bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
@@ -40,8 +66,8 @@ export function isValidUuid(uuid: string): boolean {
  */
 export function generateRandomBase64(bytes: number): string {
   const buffer = new Uint8Array(bytes);
-  webcrypto.getRandomValues(buffer);
-  return Buffer.from(buffer).toString("base64");
+  crypto.getRandomValues(buffer);
+  return toBase64(buffer);
 }
 
 /**

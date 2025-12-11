@@ -3,7 +3,29 @@
  * Shared Ed25519 signature verification logic
  */
 
-import { webcrypto } from "node:crypto";
+const crypto = globalThis.crypto;
+
+function fromBase64(base64: string): Uint8Array {
+  if (typeof atob === "function") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return new Uint8Array(BufferCtor.from(base64, "base64"));
+  }
+  // Fallback: decode manually if no Buffer (unlikely)
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 import { canonicalizeJson } from "@remote-apdu/shared";
 
 /**
@@ -21,10 +43,10 @@ export async function verifyEd25519Signature(
 ): Promise<boolean> {
   try {
     // Import Ed25519 public key
-    const publicKeyDer = Buffer.from(publicKeyBase64, "base64");
-    const publicKey = await webcrypto.subtle.importKey(
+    const publicKeyDer = fromBase64(publicKeyBase64);
+    const publicKey = await crypto.subtle.importKey(
       "spki",
-      publicKeyDer,
+      publicKeyDer.buffer as ArrayBuffer,
       { name: "Ed25519" },
       false,
       ["verify"],
@@ -34,12 +56,12 @@ export async function verifyEd25519Signature(
     const payload = canonicalizeJson(challenge);
 
     // Verify signature
-    const signature = Buffer.from(signatureBase64, "base64");
-    return await webcrypto.subtle.verify(
+    const signature = fromBase64(signatureBase64);
+    return await crypto.subtle.verify(
       { name: "Ed25519" },
       publicKey,
-      signature,
-      payload,
+      signature.buffer as ArrayBuffer,
+      payload.buffer as ArrayBuffer,
     );
   } catch {
     return false;

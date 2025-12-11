@@ -10,7 +10,49 @@
  * derived from their public key.
  */
 
-import { webcrypto } from "node:crypto";
+const crypto = globalThis.crypto;
+
+function toBase64(bytes: Uint8Array): string {
+  if (typeof btoa === "function") {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(bytes).toString("base64");
+  }
+  // Fallback: encode manually if no Buffer (unlikely)
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function fromBase64(base64: string): Uint8Array {
+  if (typeof atob === "function") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return new Uint8Array(BufferCtor.from(base64, "base64"));
+  }
+  // Fallback: decode manually if no Buffer (unlikely)
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
 
 /**
  * Generate peer ID from public key using SHA-256
@@ -20,13 +62,13 @@ import { webcrypto } from "node:crypto";
  * @returns Deterministic peer ID derived from public key
  */
 export async function generatePeerId(publicKeyBase64: string): Promise<string> {
-  const publicKeyBytes = Buffer.from(publicKeyBase64, "base64");
+  const publicKeyBytes = fromBase64(publicKeyBase64);
   
   // Hash the public key
-  const hashBuffer = await webcrypto.subtle.digest("SHA-256", publicKeyBytes);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", publicKeyBytes.buffer as ArrayBuffer);
   
   // Convert to base64url (URL-safe)
-  const base64 = Buffer.from(hashBuffer).toString("base64");
+  const base64 = toBase64(new Uint8Array(hashBuffer));
   const base64url = base64
     .replace(/\+/g, "-")
     .replace(/\//g, "_")

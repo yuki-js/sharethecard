@@ -9,10 +9,56 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { webcrypto } from "node:crypto";
-import { createLogger } from "@remote-apdu/shared";
+const crypto = globalThis.crypto;
+import { createLogger } from "../../../shared/src/index.js";
 
 const logger = createLogger("controller:keys");
+
+function toBase64(bytes: Uint8Array): string {
+  if (typeof btoa === "function") {
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return BufferCtor.from(bytes).toString("base64");
+  }
+  // Fallback: encode manually if no Buffer (unlikely)
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function fromBase64(base64: string): Uint8Array {
+  if (typeof atob === "function") {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+  const BufferCtor = (globalThis as any).Buffer;
+  if (BufferCtor) {
+    return new Uint8Array(BufferCtor.from(base64, "base64"));
+  }
+  // Fallback: decode manually if no Buffer (unlikely)
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function toUtf8(text: string): Uint8Array {
+  return new TextEncoder().encode(text);
+}
 
 export interface ControllerKeyPair {
   publicKey: string; // SPKI format, base64-encoded
@@ -72,10 +118,10 @@ export class KeyManager {
       const privateKeyBase64 = readFileSync(this.privateKeyPath, "utf8").trim();
 
       // Import private key
-      const privateKeyDer = Buffer.from(privateKeyBase64, "base64");
-      const privateKey = await webcrypto.subtle.importKey(
+      const privateKeyDer = fromBase64(privateKeyBase64);
+      const privateKey = await crypto.subtle.importKey(
         "pkcs8",
-        privateKeyDer,
+        privateKeyDer.buffer as ArrayBuffer,
         { name: "Ed25519" },
         false,
         ["sign"],
@@ -101,24 +147,24 @@ export class KeyManager {
   private async generateNew(): Promise<ControllerKeyPair> {
     try {
       // Generate Ed25519 keypair
-      const keyPair = (await webcrypto.subtle.generateKey(
+      const keyPair = (await crypto.subtle.generateKey(
         { name: "Ed25519" },
         true,
         ["sign", "verify"],
       )) as CryptoKeyPair;
 
       // Export keys
-      const publicKeySpki = await webcrypto.subtle.exportKey(
+      const publicKeySpki = await crypto.subtle.exportKey(
         "spki",
         keyPair.publicKey,
       );
-      const privateKeyPkcs8 = await webcrypto.subtle.exportKey(
+      const privateKeyPkcs8 = await crypto.subtle.exportKey(
         "pkcs8",
         keyPair.privateKey,
       );
 
-      const publicKey = Buffer.from(publicKeySpki).toString("base64");
-      const privateKeyBase64 = Buffer.from(privateKeyPkcs8).toString("base64");
+      const publicKey = toBase64(new Uint8Array(publicKeySpki));
+      const privateKeyBase64 = toBase64(new Uint8Array(privateKeyPkcs8));
 
       // Save to disk with restricted permissions
       writeFileSync(this.publicKeyPath, publicKey, { mode: 0o644 });
@@ -148,15 +194,15 @@ export class KeyManager {
     }
 
     // Canonical JSON payload (matches Router's verification)
-    const payload = Buffer.from(JSON.stringify(challenge), "utf8");
+    const payload = toUtf8(JSON.stringify(challenge));
 
-    const signature = await webcrypto.subtle.sign(
+    const signature = await crypto.subtle.sign(
       { name: "Ed25519" },
       this.keyPair.privateKey,
-      payload,
+      payload.buffer as ArrayBuffer,
     );
 
-    return Buffer.from(signature).toString("base64");
+    return toBase64(new Uint8Array(signature));
   }
 
   /**
@@ -189,10 +235,10 @@ export class KeyManager {
   ): Promise<void> {
     logger.debug("Verifying Controller ID", { controllerId });
     
-    const publicKeyBytes = Buffer.from(publicKey, "base64");
-    const hashBuffer = await webcrypto.subtle.digest("SHA-256", publicKeyBytes);
+    const publicKeyBytes = fromBase64(publicKey);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", publicKeyBytes.buffer as ArrayBuffer);
     
-    const base64 = Buffer.from(hashBuffer).toString("base64");
+    const base64 = toBase64(new Uint8Array(hashBuffer));
     const base64url = base64
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
