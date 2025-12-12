@@ -12,9 +12,6 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@remote-apdu/shared": ["packages/shared/src/index.ts"]
-    }
+    "baseUrl": "."
   }
 }

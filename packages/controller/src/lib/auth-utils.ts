@@ -6,7 +6,7 @@
  */
 
 const crypto = globalThis.crypto;
-import { createLogger, fromBase64, toBase64, prepareSigningPayload, deriveIdFromPublicKeyHash } from "../../../shared/src/index.js";
+import { createLogger, fromBase64, toBase64, prepareSigningPayload, deriveIdFromPublicKeyHash } from "@remote-apdu/shared";
 
 const logger = createLogger("controller:auth-utils");
 
