@@ -1,7 +1,9 @@
 import chalk from "chalk";
 import { readFile } from "node:fs/promises";
-import { ControllerClient, CommandApdu } from "../lib/index.js";
-import { parseApduHex } from "../lib/hex.js";
+import { ControllerClient, CommandApdu } from "../../core/index.js";
+import { KeyManager } from "../../core/key-manager.js";
+import { NodeKeyStore } from "../store/node.js";
+import { parseApduHex } from "../../core/hex.js";
 
 export type ScriptCommandArgs = {
   router?: string;
@@ -57,10 +59,13 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
   }
 
   try {
+    const keyStore = new NodeKeyStore();
+    const keyManager = new KeyManager(keyStore);
     await using client = new ControllerClient({
       routerUrl: router,
       cardhostUuid: cardhost,
       verbose,
+      keyManager,
     });
 
     if (verbose) {
@@ -102,7 +107,7 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
         console.info(chalk.green(`[${i + 1}] SW: ${sw}`));
 
         if (response.data.length > 0) {
-          const dataHex = Array.from(response.data, (b) =>
+          const dataHex = Array.from(response.data, (b: number) =>
             b.toString(16).padStart(2, "0"),
           )
             .join("")

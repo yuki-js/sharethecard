@@ -1,6 +1,8 @@
 import chalk from "chalk";
-import { ControllerClient, CommandApdu } from "../lib/index.js";
-import { parseApduHex } from "../lib/hex.js";
+import { ControllerClient, CommandApdu } from "../../core/index.js";
+import { KeyManager } from "../../core/key-manager.js";
+import { NodeKeyStore } from "../store/node.js";
+import { parseApduHex } from "../../core/hex.js";
 
 export type SendCommandArgs = {
   router?: string;
@@ -12,9 +14,6 @@ export type SendCommandArgs = {
 /**
  * Send command using new ControllerClient library
  * Sends single APDU command and displays response
- *
- * NEW API (2025-12-09): No longer requires bearer token
- * Authentication via Ed25519 keypair stored in ~/.controller/
  */
 export async function run(argv: SendCommandArgs): Promise<void> {
   const { router, cardhost, apdu, verbose } = argv;
@@ -33,7 +32,7 @@ export async function run(argv: SendCommandArgs): Promise<void> {
     return;
   }
   // Parse APDU hex string
-  let bytes: Uint8Array<ArrayBuffer>;
+  let bytes: Uint8Array;
   try {
     bytes = parseApduHex(apdu);
   } catch {
@@ -47,10 +46,13 @@ export async function run(argv: SendCommandArgs): Promise<void> {
   }
 
   try {
+    const keyStore = new NodeKeyStore();
+    const keyManager = new KeyManager(keyStore);
     await using client = new ControllerClient({
       routerUrl: router,
       cardhostUuid: cardhost,
       verbose,
+      keyManager,
     });
 
     if (verbose) {

@@ -1,7 +1,9 @@
 import chalk from "chalk";
 import { createInterface } from "node:readline";
-import { ControllerClient, CommandApdu } from "../lib/index.js";
-import { parseApduHex } from "../lib/hex.js";
+import { ControllerClient, CommandApdu } from "../../core/index.js";
+import { KeyManager } from "../../core/key-manager.js";
+import { NodeKeyStore } from "../store/node.js";
+import { parseApduHex } from "../../core/hex.js";
 
 export type InteractiveCommandArgs = {
   router?: string;
@@ -12,9 +14,6 @@ export type InteractiveCommandArgs = {
 /**
  * Interactive command using new ControllerClient library
  * Provides REPL-like interface for multiple APDU commands
- *
- * NEW API (2025-12-09): No longer requires bearer token
- * Authentication via Ed25519 keypair stored in ~/.controller/
  */
 export async function run(argv: InteractiveCommandArgs): Promise<void> {
   const { router, cardhost, verbose } = argv;
@@ -27,10 +26,13 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
     return;
   }
 
+  const keyStore = new NodeKeyStore();
+  const keyManager = new KeyManager(keyStore);
   const client = new ControllerClient({
     routerUrl: router,
     cardhostUuid: cardhost,
     verbose,
+    keyManager,
   });
 
   try {
@@ -84,7 +86,7 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
 
           // Display response
           if (response.data.length > 0) {
-            const dataHex = Array.from(response.data, (b) =>
+            const dataHex = Array.from(response.data, (b: number) =>
               b.toString(16).padStart(2, "0"),
             )
               .join("")

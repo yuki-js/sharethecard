@@ -1,5 +1,7 @@
 import chalk from "chalk";
-import { ControllerClient } from "../lib/index.js";
+import { ControllerClient } from "../../core/controller-client.js";
+import { KeyManager } from "../../core/key-manager.js";
+import { NodeKeyStore } from "../store/node.js";
 
 export type ConnectCommandArgs = {
   router?: string;
@@ -10,9 +12,6 @@ export type ConnectCommandArgs = {
 /**
  * Connect command using new ControllerClient library
  * Establishes connection and keeps it alive
- *
- * NEW API (2025-12-09): No longer requires bearer token
- * Authentication via Ed25519 keypair stored in ~/.controller/
  */
 export async function run(argv: ConnectCommandArgs): Promise<void> {
   const { router, cardhost, verbose } = argv;
@@ -26,10 +25,13 @@ export async function run(argv: ConnectCommandArgs): Promise<void> {
   }
 
   try {
+    const keyStore = new NodeKeyStore();
+    const keyManager = new KeyManager(keyStore);
     const client = new ControllerClient({
       routerUrl: router,
       cardhostUuid: cardhost,
       verbose,
+      keyManager,
     });
 
     if (verbose) {

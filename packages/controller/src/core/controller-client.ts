@@ -21,9 +21,9 @@ import { KeyManager } from "./key-manager.js";
  */
 export interface ControllerConfig {
   routerUrl: string;
+  keyManager: KeyManager;
   cardhostUuid?: string;
   verbose?: boolean;
-  keyManager?: KeyManager; // Optional for testing
 }
 
 /**
@@ -33,9 +33,12 @@ export interface ControllerConfig {
  *
  * Usage:
  * ```typescript
+ * const keyStore = new NodeKeyStore(); // or BrowserKeyStore
+ * const keyManager = new KeyManager(keyStore);
  * const client = new ControllerClient({
  *   routerUrl: 'https://router.example.com',
- *   cardhostUuid: 'peer_...'
+ *   cardhostUuid: 'peer_...',
+ *   keyManager,
  * });
  *
  * await client.connect();
@@ -63,7 +66,7 @@ export class ControllerClient {
   private connectedCardhostUuid: string | null = null;
 
   constructor(private config: ControllerConfig) {
-    this.keyManager = config.keyManager ?? new KeyManager();
+    this.keyManager = config.keyManager;
   }
 
   /**

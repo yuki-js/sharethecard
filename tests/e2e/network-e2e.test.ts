@@ -22,7 +22,8 @@ import {
   MockSmartCardPlatform,
   ConfigManager,
 } from "@remote-apdu/cardhost";
-import { ControllerClient, CommandApdu } from "@remote-apdu/controller";
+import { ControllerClient, CommandApdu, KeyManager } from "@remote-apdu/controller";
+import { NodeKeyStore } from "@remote-apdu/controller/store";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { rmSync } from "node:fs";
@@ -97,10 +98,14 @@ describe.sequential("E2E: Real network end-to-end", () => {
     }
     const cardhostUuid = connected.uuid;
 
+    const keyStore = new NodeKeyStore(join(testDir!, "controller-keys"));
+    const keyManager = new KeyManager(keyStore);
+
     // Controller uses WebSocket-only (v3.0 spec)
     const client = new ControllerClient({
       routerUrl: BASE_URL,
       cardhostUuid,
+      keyManager,
     });
 
     await client.connect();
@@ -135,9 +140,13 @@ describe.sequential("E2E: Real network end-to-end", () => {
     }
     const cardhostUuid = connected.uuid;
 
+    const keyStore = new NodeKeyStore(join(testDir!, "controller-keys-stateful"));
+    const keyManager = new KeyManager(keyStore);
+
     const client = new ControllerClient({
       routerUrl: BASE_URL,
       cardhostUuid,
+      keyManager,
     });
 
     await client.connect();

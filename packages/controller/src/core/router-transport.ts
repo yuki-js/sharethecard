@@ -1,22 +1,17 @@
-/**
- * Router Transport for Controller
- * 
- * 責務分離:
- * 1. WsAuthenticator: 認証・セッション確立
- * 2. RouterClientTransport: RPC通信（仮想論理チャネル）
- * 
- * Implements ClientTransport interface from jsapdu-over-ip
- */
-
-import { WebSocket } from "ws";
+import WebSocket from "isomorphic-ws";
 import type { ClientTransport } from "@aokiapp/jsapdu-over-ip";
 import type {
   RpcRequest,
   RpcResponse,
   RpcEvent,
 } from "@aokiapp/jsapdu-over-ip";
-import { createLogger, WsContextImpl, MessageRouter, signChallenge } from "@remote-apdu/shared";
-import type { WsContext } from "@remote-apdu/shared";
+import {
+  createLogger,
+  WsContextImpl,
+  MessageRouter,
+  signChallenge,
+} from "@remote-apdu/shared";
+import type { WsContext, WebSocketLike } from "@remote-apdu/shared";
 import { verifyDerivedPeerId as verifyDerivedControllerId } from "@remote-apdu/shared";
 
 const logger = createLogger("controller:transport");
@@ -35,7 +30,7 @@ export interface WsAuthenticatorConfig {
  * さらに connect-cardhost フロー実行
  */
 export class WsAuthenticator {
-  private ws: WebSocket | null = null;
+  private ws: WebSocketLike | null = null;
   private controllerId: string | null = null;
   private challenge: string | null = null;
   private authenticated = false;
@@ -57,16 +52,23 @@ export class WsAuthenticator {
         .replace(/^https:/, "wss:")
         .replace(/\/$/, "");
 
-      this.ws = new WebSocket(`${wsUrl}/ws/controller`);
+      this.ws = new WebSocket(`${wsUrl}/ws/controller`) as WebSocketLike;
 
+      if (!this.ws) {
+        return reject(new Error("WebSocket failed to initialize."));
+      }
       const ctx = new WsContextImpl<any>(this.ws, {});
       const authRouter = new MessageRouter()
-        .register("auth-challenge", (c, msg: any) => this.handleAuthChallenge(c, msg))
-        .register("auth-success", (c, msg: any) => this.handleAuthSuccess(c, msg))
+        .register("auth-challenge", (c, msg: any) =>
+          this.handleAuthChallenge(c, msg),
+        )
+        .register("auth-success", (c, msg: any) =>
+          this.handleAuthSuccess(c, msg),
+        )
         .register("connected", (c, msg: any) => this.handleConnected(c, msg))
         .register("error", (c, msg: any) => this.handleError(c, msg, reject));
 
-      this.ws.on("open", async () => {
+      (this.ws as any).on("open", async () => {
         try {
           // auth-init 送信
           await ctx.send({
@@ -78,8 +80,9 @@ export class WsAuthenticator {
         }
       });
 
-      this.ws.on("message", async (data) => {
+      (this.ws as any).on("message", async (data: any) => {
         try {
+          // data is normalized in shared WsContextImpl
           const msg = JSON.parse(data.toString());
           if (!this.authenticated || !this.connected) {
             await authRouter.route(ctx, msg);
@@ -89,11 +92,11 @@ export class WsAuthenticator {
         }
       });
 
-      this.ws.on("error", (err) => {
+      (this.ws as any).on("error", (err: Error) => {
         reject(err);
       });
 
-      this.ws.on("close", () => {
+      (this.ws as any).on("close", () => {
         if (!this.connected) {
           reject(new Error("WebSocket closed before connection established"));
         }
@@ -147,7 +150,9 @@ export class WsAuthenticator {
    */
   private async handleAuthSuccess(ctx: WsContext, msg: any): Promise<void> {
     this.authenticated = true;
-    logger.info("Authentication successful", { controllerId: this.controllerId });
+    logger.info("Authentication successful", {
+      controllerId: this.controllerId,
+    });
 
     // 次: connect-cardhost 送信
     const cardhostUuid = ctx.state.targetCardhostUuid as string;
@@ -171,7 +176,7 @@ export class WsAuthenticator {
   private async handleError(
     ctx: WsContext,
     msg: any,
-    reject: (err: Error) => void
+    reject: (err: Error) => void,
   ): Promise<void> {
     reject(new Error(`Error: ${msg.error.code} - ${msg.error.message}`));
   }
@@ -179,7 +184,7 @@ export class WsAuthenticator {
   /**
    * 認証済みWebSocketを取得（RouterClientTransportで使用）
    */
-  getWebSocket(): WebSocket {
+  getWebSocket(): WebSocketLike {
     if (!this.ws || !this.connected) {
       throw new Error("Not authenticated/connected");
     }
@@ -209,7 +214,7 @@ export class WsAuthenticator {
   async close(): Promise<void> {
     if (this.ws) {
       return new Promise((resolve) => {
-        this.ws!.once("close", resolve);
+        (this.ws as any).once("close", resolve);
         this.ws!.close();
       });
     }
@@ -225,11 +230,11 @@ export interface RouterClientTransportConfig {
 /**
  * WebSocket上の仮想論理チャネル
  * 認証・接続後のRPC通信を担当（jsapdu-over-ip ClientTransport interface実装）
- * 
+ *
  * 注: 認証はWsAuthenticatorが行済みであることを前提
  */
 export class RouterClientTransport implements ClientTransport {
-  private ws: WebSocket | null = null;
+  private ws: WebSocketLike | null = null;
   private eventCallbacks: Set<(event: RpcEvent) => void> = new Set();
   private pendingCalls = new Map<string, (response: RpcResponse) => void>();
   private connected = false;
@@ -266,12 +271,12 @@ export class RouterClientTransport implements ClientTransport {
             type: "rpc-request",
             id,
             payload: request,
-          })
+          }),
         );
       } catch (err) {
         clearTimeout(timeout);
         this.pendingCalls.delete(id);
-        reject(err);
+        reject(err as Error);
       }
     });
   }
@@ -297,7 +302,7 @@ export class RouterClientTransport implements ClientTransport {
     this.ws = this.config.authenticator.getWebSocket();
 
     // RPC メッセージハンドリング設定
-    this.ws.on("message", async (data) => {
+    (this.ws as any).on("message", async (data: any) => {
       await this.handleMessage(data);
     });
 
@@ -350,7 +355,7 @@ export class RouterClientTransport implements ClientTransport {
     return (
       this.connected &&
       this.ws !== null &&
-      this.ws.readyState === WebSocket.OPEN
+      this.ws.readyState === 1 // WebSocket.OPEN
     );
   }
 }
