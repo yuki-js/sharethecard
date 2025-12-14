@@ -3,7 +3,7 @@
  * Business logic for cardhost authentication and connection management
  */
 
-import type { CardhostInfo } from "@remote-apdu/shared";
+import type { CardhostInfo } from "../shared/types.js";
 import { AuthService } from "../service/auth-service.js";
 import { CardhostRepository } from "../repository/cardhost-repository.js";
 

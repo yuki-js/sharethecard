@@ -15,10 +15,9 @@ import type {
   RpcResponse,
   RpcEvent,
 } from "@aokiapp/jsapdu-over-ip";
-import { createLogger } from "@remote-apdu/shared";
+import { createLogger, WsContextImpl, MessageRouter, signChallenge } from "@remote-apdu/shared";
 import type { WsContext } from "@remote-apdu/shared";
-import { WsServer, WsContextImpl, MessageRouter } from "@remote-apdu/shared";
-import { verifyDerivedUuid, signChallenge } from "./auth-utils.js";
+import { verifyDerivedPeerId as verifyDerivedUuid } from "@remote-apdu/shared";
 
 const logger = createLogger("cardhost:transport");
 

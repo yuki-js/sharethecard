@@ -10,7 +10,8 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 const crypto = globalThis.crypto;
-import { createLogger, toBase64, fromBase64, toUtf8, exportEd25519KeyPair, prepareSigningPayload, deriveIdFromPublicKeyHash } from "@remote-apdu/shared";
+import { createLogger, toBase64, fromBase64, toUtf8, prepareSigningPayload, deriveIdFromPublicKeyHash } from "@remote-apdu/shared";
+import { exportEd25519KeyPair } from "./crypto-utils.js";
 
 const logger = createLogger("controller:keys");
 

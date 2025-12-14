@@ -12,11 +12,6 @@ export { KeyManager } from "./key-manager.js";
 export type { RouterClientTransportConfig, WsAuthenticatorConfig } from "./router-transport.js";
 export type { ControllerKeyPair, ControllerIdentity } from "./key-manager.js";
 
-// Re-export useful types from shared
-export type {
-  CardhostInfo,
-  SessionToken,
-} from "@remote-apdu/shared";
 
 // Note: ControllerConfig now defined in controller-client.ts (no longer uses bearer token)
 export type { ControllerConfig } from "./controller-client.js";

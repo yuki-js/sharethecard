@@ -83,40 +83,7 @@ export function prepareSigningPayload(data: unknown): Uint8Array {
   return canonicalizeJson(data);
 }
 
-/**
- * Import an Ed25519 key from base64 (PKCS8 for "sign", SPKI for "verify").
- */
-export async function importEd25519Key(
-  keyBase64: string,
-  usage: "sign" | "verify",
-): Promise<CryptoKey> {
-  const keyDer = fromBase64(keyBase64);
-  const format = usage === "sign" ? "pkcs8" : "spki";
-  return crypto.subtle.importKey(
-    format,
-    keyDer.buffer as ArrayBuffer,
-    { name: "Ed25519" },
-    false,
-    [usage],
-  );
-}
 
-/**
- * Export an Ed25519 keypair to base64 strings (SPKI public, PKCS8 private).
- */
-export async function exportEd25519KeyPair(
-  keyPair: CryptoKeyPair,
-): Promise<{ publicKey: string; privateKey: string }> {
-  const [publicKeyDer, privateKeyDer] = await Promise.all([
-    crypto.subtle.exportKey("spki", keyPair.publicKey),
-    crypto.subtle.exportKey("pkcs8", keyPair.privateKey),
-  ]);
-
-  return {
-    publicKey: toBase64(new Uint8Array(publicKeyDer)),
-    privateKey: toBase64(new Uint8Array(privateKeyDer)),
-  };
-}
 
 /**
  * TODO: Replace with RFC 4122 UUID v5 / v4 generation

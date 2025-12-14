@@ -3,7 +3,7 @@
  * Handles bearer token validation and cardhost public key authentication
  */
 
-import { generateRandomBase64 } from "@remote-apdu/shared";
+import { generateRandomBase64 } from "../shared/random.js";
 import { CardhostRepository } from "../repository/cardhost-repository.js";
 import { generatePeerId, verifyPeerId } from "../shared/peer-id.js";
 import { verifyEd25519Signature } from "../shared/signature-verification.js";

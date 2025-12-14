@@ -6,8 +6,8 @@
  * Authentication is handled separately via public key cryptography.
  */
 
-import { generateRandomBase64 } from "@remote-apdu/shared";
-import type { SessionToken } from "@remote-apdu/shared";
+import { generateRandomBase64 } from "../shared/random.js";
+import type { SessionToken } from "../shared/types.js";
 import { SessionRepository, type SessionData } from "../repository/session-repository.js";
 
 export class SessionService {

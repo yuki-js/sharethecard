@@ -4,7 +4,7 @@
  * Can be used as a library or started as a standalone server
  */
 
-import type { RouterConfig } from "@remote-apdu/shared";
+import type { RouterConfig } from "./shared/types.js";
 
 // Repository layer
 import { SessionRepository } from "./repository/session-repository.js";

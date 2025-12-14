@@ -10,7 +10,7 @@
 import { SessionService } from "../service/session-service.js";
 import { ControllerAuthService } from "../service/controller-auth-service.js";
 import { AuthService } from "../service/auth-service.js";
-import type { SessionToken } from "@remote-apdu/shared";
+import type { SessionToken } from "../shared/types.js";
 
 export class ControllerUseCase {
   constructor(

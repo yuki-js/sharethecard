@@ -1,7 +1,7 @@
 import chalk from "chalk";
 import { createInterface } from "node:readline";
 import { ControllerClient, CommandApdu } from "../lib/index.js";
-import { parseApduHex } from "@remote-apdu/shared";
+import { parseApduHex } from "../lib/hex.js";
 
 export type InteractiveCommandArgs = {
   router?: string;

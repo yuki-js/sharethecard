@@ -32,27 +32,14 @@ export async function generateEd25519KeyPair() {
 }
 
 /**
- * Sign challenge with Ed25519 private key
- */
-export async function signChallenge(
-  challenge: string,
-  privateKeyBase64: string,
-): Promise<string> {
-  const privateKeyDer = fromBase64(privateKeyBase64);
-  const privateKey = await crypto.subtle.importKey(
-    "pkcs8",
-    privateKeyDer.buffer as ArrayBuffer,
-    { name: "Ed25519" },
-    false,
-    ["sign"],
-  );
-
-  const payload = toUtf8(JSON.stringify(challenge));
-  const signature = await crypto.subtle.sign(
-    { name: "Ed25519" },
-    privateKey,
-    payload.buffer as ArrayBuffer,
-  );
-
-  return toBase64(new Uint8Array(signature));
-}
+ /**
+  * Sign challenge with Ed25519 private key (delegated to shared helper)
+  */
+ import { signChallenge as sharedSignChallenge } from "@remote-apdu/shared";
+ 
+ export async function signChallenge(
+   challenge: string,
+   privateKeyBase64: string,
+ ): Promise<string> {
+   return await sharedSignChallenge(challenge, privateKeyBase64);
+ }

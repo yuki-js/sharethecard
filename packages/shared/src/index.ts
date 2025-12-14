@@ -7,4 +7,5 @@
 
 export * from "./types/index.js";
 export * from "./utils/index.js";
-export * from "./ws-framework/index.js";
+export * from "./ws/index.js";
+export * from "./crypto/auth.js";

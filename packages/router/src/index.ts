@@ -15,8 +15,4 @@ export { CardhostUseCase } from "./usecase/cardhost-usecase.js";
 export { TransportUseCase } from "./usecase/transport-usecase.js";
 
 // Re-export useful types from shared
-export type {
-  RouterConfig,
-  SessionToken,
-  CardhostInfo,
-} from "@remote-apdu/shared";
+export type { RouterConfig, SessionToken, CardhostInfo } from "./shared/types.js";

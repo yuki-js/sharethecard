@@ -4,9 +4,15 @@ export default defineConfig({
   test: {
     // Network E2E enabled: starts real runtime HTTP/WS server on dedicated ports during tests.
     include: [
+      // top-level files
+      "tests/unit/*.test.ts",
+      "tests/integration/*.test.ts",
+      "tests/e2e/*.test.ts",
+      // nested files
       "tests/unit/**/*.test.ts",
       "tests/integration/**/*.test.ts",
       "tests/e2e/**/*.test.ts",
+      // package-local tests
       "packages/*/tests/**/*.test.ts",
     ],
     environment: "node",

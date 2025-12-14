@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import { ControllerClient, CommandApdu } from "../lib/index.js";
-import { parseApduHex } from "@remote-apdu/shared";
+import { parseApduHex } from "../lib/hex.js";
 
 export type SendCommandArgs = {
   router?: string;

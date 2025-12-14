@@ -13,5 +13,19 @@
     "skipLibCheck": true,
     "types": ["node"],
     "baseUrl": "."
-  }
+  },
+  "include": [
+    "packages/shared/src",
+    "packages/controller/src",
+    "packages/cardhost/src",
+    "packages/router/src"
+  ],
+  "exclude": [
+    "node_modules",
+    "research/**",
+    "**/dist",
+    "**/tests",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
 }
