@@ -75,19 +75,19 @@ log_info "Cardhost PID: $CARDHOST_PID"
 # Wait for cardhost to connect
 sleep 3
 
-# Extract cardhost UUID from logs
-if [ -f "$TEST_TMP_DIR/cardhost.log" ]; then
-    CARDHOST_UUID=$(grep "Cardhost UUID:" "$TEST_TMP_DIR/cardhost.log" | tail -1 | sed -E 's/.*Cardhost UUID: ([^ ]+).*/\1/')
+# Extract cardhost UUID from Router logs (Cardhost does not log UUID)
+if [ -f "$TEST_TMP_DIR/router.log" ]; then
+    CARDHOST_UUID=$(grep -Eo '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}' "$TEST_TMP_DIR/router.log" | tail -1)
     if [ -n "$CARDHOST_UUID" ]; then
         echo "$CARDHOST_UUID" > "$TEST_TMP_DIR/cardhost.uuid"
         log_success "Cardhost UUID: $CARDHOST_UUID"
     else
-        log_warn "Could not extract Cardhost UUID from logs"
-        log_info "Cardhost log:"
-        cat "$TEST_TMP_DIR/cardhost.log"
+        log_warn "Could not extract Cardhost UUID from Router logs"
+        log_info "Router log (tail):"
+        tail -n 100 "$TEST_TMP_DIR/router.log"
     fi
 else
-    log_error "Cardhost log file not found"
+    log_error "Router log file not found"
 fi
 
 # Verify cardhost is connected by checking router stats

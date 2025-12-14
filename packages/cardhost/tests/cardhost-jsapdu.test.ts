@@ -150,7 +150,6 @@ describe("Integration: Cardhost + jsapdu", () => {
       const configManager = new ConfigManager(testFile, testDir);
       const config = await configManager.loadOrCreate("http://test.com");
 
-      expect(config.uuid).toBeDefined();
       expect(config.signingPublicKey).toBeDefined();
       expect(config.signingPrivateKey).toBeDefined();
       expect(config.routerUrl).toBe("http://test.com");

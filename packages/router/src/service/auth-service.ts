@@ -5,8 +5,8 @@
 
 import { generateRandomBase64 } from "../shared/random.js";
 import { CardhostRepository } from "../repository/cardhost-repository.js";
-import { generatePeerId, verifyPeerId } from "../shared/peer-id.js";
 import { verifyEd25519Signature } from "../shared/signature-verification.js";
+import { randomUUID } from "node:crypto";
 
 export class AuthService {
   private readonly CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
@@ -15,16 +15,18 @@ export class AuthService {
 
   /**
    * Initiate cardhost authentication
-   * Step 1: Derive cardhost UUID from public key, register, and issue challenge
+   * Step 1: Assign RFC 4122 UUID v4 for the cardhost public key, register, and issue challenge
    *
-   * IMPORTANT: Cardhost UUID is derived from public key, not chosen by peer.
-   * This prevents impersonation and collision attacks.
+   * IMPORTANT: Cardhost UUID is assigned by the Router (RFC 4122 v4) and is not chosen or derived by the peer.
    */
   async initiateCardhostAuth(publicKey: string): Promise<{ uuid: string; challenge: string }> {
-    // Derive UUID from public key (cannot be chosen by peer)
-    const uuid = await generatePeerId(publicKey);
-    
-    // Register cardhost
+    // Reuse existing UUID if this public key already registered in this runtime
+    let uuid = this.cardhostRepo.findUuidByPublicKey(publicKey);
+    if (!uuid) {
+      uuid = randomUUID(); // RFC 4122 UUID v4
+    }
+
+    // Register/update cardhost mapping
     this.cardhostRepo.register(uuid, publicKey);
 
     // Generate cryptographic challenge
@@ -36,7 +38,7 @@ export class AuthService {
 
   /**
    * Verify cardhost authentication
-   * Step 2: Verify Ed25519 signature over challenge and UUID binding
+   * Step 2: Verify Ed25519 signature over challenge
    */
   async verifyCardhostAuth(
     uuid: string,
@@ -47,11 +49,6 @@ export class AuthService {
     const cardhost = this.cardhostRepo.get(uuid);
     if (!cardhost) {
       throw new Error("Cardhost not registered");
-    }
-
-    // Verify UUID is correctly derived from public key
-    if (!(await verifyPeerId(uuid, cardhost.publicKey))) {
-      throw new Error("Cardhost UUID does not match public key");
     }
 
     // Get stored challenge

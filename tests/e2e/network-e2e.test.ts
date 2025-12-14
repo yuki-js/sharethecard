@@ -89,7 +89,13 @@ describe.sequential("E2E: Real network end-to-end", () => {
 
   it("should transmit APDU end-to-end (Controller → WS RPC → Router → Cardhost)", async () => {
     if (!cardhost) throw new Error("Cardhost not started");
-    const cardhostUuid = cardhost.getUuid();
+    // Obtain cardhost UUID from Router (Cardhost does not know UUID)
+    const list = runtime!.router.cardhostUseCase.listCardhosts();
+    const connected = list.find((c) => c.connected) ?? list[0];
+    if (!connected) {
+      throw new Error("No cardhost registered in Router");
+    }
+    const cardhostUuid = connected.uuid;
 
     // Controller uses WebSocket-only (v3.0 spec)
     const client = new ControllerClient({
@@ -121,7 +127,13 @@ describe.sequential("E2E: Real network end-to-end", () => {
 
   it("should perform a realistic stateful APDU sequence over a single persistent WS session", async () => {
     if (!cardhost) throw new Error("Cardhost not started");
-    const cardhostUuid = cardhost.getUuid();
+    // Obtain cardhost UUID from Router (Cardhost does not know UUID)
+    const list = runtime!.router.cardhostUseCase.listCardhosts();
+    const connected = list.find((c) => c.connected) ?? list[0];
+    if (!connected) {
+      throw new Error("No cardhost registered in Router");
+    }
+    const cardhostUuid = connected.uuid;
 
     const client = new ControllerClient({
       routerUrl: BASE_URL,

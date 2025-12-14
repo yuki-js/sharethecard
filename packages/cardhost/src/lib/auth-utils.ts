@@ -6,40 +6,7 @@
  */
 
 const crypto = globalThis.crypto;
-import { createLogger, fromBase64, toBase64, prepareSigningPayload, deriveIdFromPublicKeyHash } from "@remote-apdu/shared";
-
-const logger = createLogger("cardhost:auth-utils");
-
-
-
-/**
- * Verify that Router-derived UUID matches public key hash
- * This prevents man-in-the-middle attacks where Router might return wrong UUID
- */
-export async function verifyDerivedUuid(
-  derivedUuid: string,
-  publicKeyBase64: string,
-): Promise<void> {
-  try {
-    // TODO: Replace base64url-derived ID with RFC 4122 UUID (e.g., v5 deterministic). See shared utils.
-    // Temporary derivation centralized in shared utils
-    const expectedUuid = await deriveIdFromPublicKeyHash(publicKeyBase64);
-
-    if (derivedUuid !== expectedUuid) {
-      logger.error("UUID verification failed", undefined, {
-        received: derivedUuid,
-        expected: expectedUuid,
-      });
-      throw new Error(
-        `UUID verification failed: Router returned ${derivedUuid} but expected ${expectedUuid}. ` +
-        `Possible man-in-the-middle attack or Router implementation error.`
-      );
-    }
-  } catch (error) {
-    logger.error("UUID derivation error", error as Error);
-    throw error;
-  }
-}
+import { fromBase64, toBase64, prepareSigningPayload } from "@remote-apdu/shared";
 
 /**
  * Sign challenge using Ed25519 private key

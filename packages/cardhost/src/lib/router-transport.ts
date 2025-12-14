@@ -1,10 +1,10 @@
 /**
  * Router Transport for Cardhost
- * 
+ *
  * 責務分離:
  * 1. WsAuthenticator: 認証・セッション確立
  * 2. RouterServerTransport: RPC通信（仮想論理チャネル）
- * 
+ *
  * Implements ServerTransport interface from jsapdu-over-ip
  */
 
@@ -17,7 +17,6 @@ import type {
 } from "@aokiapp/jsapdu-over-ip";
 import { createLogger, WsContextImpl, MessageRouter, signChallenge } from "@remote-apdu/shared";
 import type { WsContext } from "@remote-apdu/shared";
-import { verifyDerivedPeerId as verifyDerivedUuid } from "@remote-apdu/shared";
 
 const logger = createLogger("cardhost:transport");
 
@@ -32,11 +31,10 @@ export interface WsAuthenticatorConfig {
 
 /**
  * WebSocket接続と認証フローを専門に管理
- * 認証後、Router派生のUUIDを取得
+ * Cardhost は自分の UUID を知りません（Router 内部でのみ保持）
  */
 export class WsAuthenticator {
   private ws: WebSocket | null = null;
-  private uuid: string | null = null;
   private challenge: string | null = null;
   private authenticated = false;
 
@@ -45,9 +43,9 @@ export class WsAuthenticator {
   /**
    * WebSocket接続と認証フロー実行
    */
-  async authenticate(): Promise<string> {
+  async authenticate(): Promise<void> {
     if (this.authenticated) {
-      return this.uuid!;
+      return;
     }
 
     return new Promise((resolve, reject) => {
@@ -120,7 +118,7 @@ export class WsAuthenticator {
       const checkInterval = setInterval(() => {
         if (this.authenticated) {
           clearInterval(checkInterval);
-          resolve(this.uuid!);
+          resolve();
         }
       }, 100);
 
@@ -138,11 +136,8 @@ export class WsAuthenticator {
    * auth-challenge ハンドラー
    */
   private async handleAuthChallenge(ctx: WsContext, msg: any): Promise<void> {
-    const { uuid, challenge } = msg;
+    const { challenge } = msg;
 
-    // UUID検証
-    await verifyDerivedUuid(uuid, this.config.publicKey);
-    this.uuid = uuid;
     this.challenge = challenge;
 
     // 署名
@@ -160,7 +155,7 @@ export class WsAuthenticator {
    */
   private async handleAuthSuccess(ctx: WsContext, msg: any): Promise<void> {
     this.authenticated = true;
-    logger.info("Authentication successful", { uuid: this.uuid });
+    logger.info("Authentication successful");
   }
 
   /**
@@ -182,16 +177,6 @@ export class WsAuthenticator {
       throw new Error("Not authenticated");
     }
     return this.ws;
-  }
-
-  /**
-   * UUID取得
-   */
-  getUuid(): string {
-    if (!this.uuid) {
-      throw new Error("Not authenticated");
-    }
-    return this.uuid;
   }
 
   /**
@@ -223,7 +208,7 @@ export interface RouterTransportConfig {
 /**
  * WebSocket上の仮想論理チャネル
  * 認証後のRPC通信を担当（jsapdu-over-ip ServerTransport interface実装）
- * 
+ *
  * 注: 認証はWsAuthenticatorが行済みであることを前提
  */
 export class RouterServerTransport implements ServerTransport {

@@ -185,7 +185,7 @@ describe("Integration: Component Interaction (Library-level)", () => {
         await router.cardhostUseCase.initiateAuth(publicKey);
 
       expect(uuid).toBeDefined();
-      expect(uuid).toMatch(/^peer_/);
+      expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
       expect(challenge).toBeDefined();
     });
 

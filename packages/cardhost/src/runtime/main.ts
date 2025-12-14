@@ -45,10 +45,10 @@ Environment Variables:
 
 Configuration:
   Config file: ~/.cardhost/config.json
-  Contains: UUID, Ed25519 keypair, router URL
+  Contains: Ed25519 keypair, router URL
 
 The service will:
-1. Load or create UUID and keypair
+1. Load or create Ed25519 keypair
 2. Authenticate with Router via challenge-response
 3. Start serving APDU requests from Controllers
 4. Auto-reconnect on connection loss
@@ -90,7 +90,6 @@ async function main(): Promise<void> {
   try {
     await service.connect(routerUrl);
     console.log(`✓ Connected to Router`);
-    console.log(`✓ Cardhost UUID: ${service.getUuid()}`);
     console.log(`✓ Ready to serve APDU requests`);
   } catch (error) {
     console.error("Failed to connect:", (error as Error).message);

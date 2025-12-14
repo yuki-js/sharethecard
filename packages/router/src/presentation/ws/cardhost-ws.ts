@@ -1,10 +1,10 @@
 /**
  * Cardhost WebSocket Handler
  * Handles WebSocket connections from cardhosts with message-based authentication
- * 
+ *
  * Flow:
  * 1. auth-init: Cardhost sends public key
- * 2. auth-challenge: Router sends UUID + challenge
+ * 2. auth-challenge: Router sends challenge
  * 3. auth-verify: Cardhost sends signature
  * 4. auth-success: Router confirms authentication
  * 5. rpc-request/response: Normal RPC flow
@@ -85,18 +85,17 @@ async function handleAuthPhase(
     const { publicKey } = msg;
     state.publicKey = publicKey;
 
-    // Step 2: Generate UUID and challenge
+    // Step 2: Assign/lookup UUID and generate challenge
     const { uuid, challenge } =
       await router.cardhostUseCase.initiateAuth(publicKey);
 
     state.uuid = uuid;
     state.challenge = challenge;
 
-    // Send challenge
+    // Send challenge (UUID is router-internal and not disclosed to cardhost)
     ws.send(
       JSON.stringify({
         type: "auth-challenge",
-        uuid,
         challenge,
       })
     );
@@ -127,11 +126,10 @@ async function handleAuthPhase(
       return;
     }
 
-    // Step 4: Authentication successful
+    // Step 4: Authentication successful (UUID remains undisclosed)
     ws.send(
       JSON.stringify({
         type: "auth-success",
-        uuid: state.uuid,
       })
     );
 

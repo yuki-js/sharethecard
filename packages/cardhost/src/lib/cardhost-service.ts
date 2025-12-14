@@ -7,7 +7,7 @@
  * 1. 認証層：WsAuthenticator（認証のみ）
  * 2. 論理チャネル層：RouterServerTransport（E2E暗号化含む将来拡張可能）
  * 3. アプリケーション層：SmartCardPlatformAdapter（RPC処理）
- * 
+ *
  * 遅延初期化：Controller接続時に初めて transport/adapter を作成
  */
 
@@ -32,7 +32,7 @@ export interface CardhostServiceConfig {
  * 遅延初期化戦略:
  * - connect(): 認証のみ実行、WebSocket待機状態
  * - Controller接続時: その時点で transport/adapter を初期化
- * 
+ *
  * これにより:
  * - リソース効率向上（使われるまで初期化しない）
  * - 明確な責務分離
@@ -58,7 +58,7 @@ export class CardhostService {
    * - WebSocket接続
    * - チャレンジ-レスポンス認証
    * - Controller接続待機状態
-   * 
+   *
    * Phase 2: Controller接続時（遅延初期化）
    * - transport/adapter作成
    * - RPC待機開始
@@ -81,12 +81,7 @@ export class CardhostService {
       onControllerConnected: () => this.initializeTransport(),
     });
 
-    const derivedUuid = await this.authenticator.authenticate();
-
-    // Update config with Router-derived UUID if changed
-    if (derivedUuid !== config.uuid) {
-      await this.configManager.updateUuid(derivedUuid);
-    }
+    await this.authenticator.authenticate();
 
     this.authenticated = true;
     logger.info("Cardhost authenticated, waiting for Controller connection");
@@ -166,13 +161,6 @@ export class CardhostService {
     }
 
     this.authenticated = false;
-  }
-
-  /**
-   * Get Cardhost UUID
-   */
-  getUuid(): string {
-    return this.configManager.getUuid();
   }
 
   /**

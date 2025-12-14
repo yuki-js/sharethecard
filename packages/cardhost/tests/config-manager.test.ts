@@ -36,22 +36,20 @@ describe("ConfigManager", () => {
   });
 
   describe("Configuration Creation", () => {
-    it("should create new config with UUID and keypair", async () => {
+    it("should create new config with keypair and router URL (no UUID)", async () => {
       const config = await manager.loadOrCreate("http://test-router.com");
 
-      expect(config).toHaveProperty("uuid");
+      expect(config).not.toHaveProperty("uuid");
       expect(config).toHaveProperty("signingPublicKey");
       expect(config).toHaveProperty("signingPrivateKey");
       expect(config).toHaveProperty("routerUrl");
       expect(config).toHaveProperty("createdAt");
     });
 
-    it("should initialize with pending-router-derivation placeholder", async () => {
+    it("should not include UUID placeholder in config", async () => {
       const config = await manager.loadOrCreate();
 
-      // UUID is placeholder until Router authentication
-      expect(config.uuid).toBe("pending-router-derivation");
-      expect(config.uuidSource).toBe("router-derived");
+      expect(config).not.toHaveProperty("uuid");
     });
 
     it("should generate Ed25519 keypair in base64", async () => {
@@ -102,9 +100,9 @@ describe("ConfigManager", () => {
       const manager2 = new ConfigManager(testConfigFile, testDir);
       const loaded = await manager2.loadOrCreate();
 
-      expect(loaded.uuid).toBe(original.uuid);
       expect(loaded.signingPublicKey).toBe(original.signingPublicKey);
       expect(loaded.signingPrivateKey).toBe(original.signingPrivateKey);
+      expect(loaded.routerUrl).toBe(original.routerUrl);
     });
 
     it("should return cached config on subsequent calls", async () => {
@@ -117,17 +115,18 @@ describe("ConfigManager", () => {
   });
 
   describe("UUID Persistence", () => {
-    it("should maintain same UUID across restarts", async () => {
+    it("should not include UUID across restarts", async () => {
       const config1 = await manager.loadOrCreate();
-      const uuid1 = config1.uuid;
 
       // Simulate restart: create new manager
       const manager2 = new ConfigManager(testConfigFile, testDir);
       const config2 = await manager2.loadOrCreate();
 
-      expect(config2.uuid).toBe(uuid1);
+      expect(config1).not.toHaveProperty("uuid");
+      expect(config2).not.toHaveProperty("uuid");
     });
-
+  });
+  describe("Keypair Persistence", () => {
     it("should maintain same keypair across restarts", async () => {
       const config1 = await manager.loadOrCreate();
       const publicKey1 = config1.signingPublicKey;
@@ -141,25 +140,18 @@ describe("ConfigManager", () => {
     });
   });
 
-  describe("UUID Retrieval", () => {
-    it("should get UUID after config loaded", async () => {
+  describe("Config Retrieval", () => {
+    it("should get config after load", async () => {
       await manager.loadOrCreate();
-      const uuid = manager.getUuid();
+      const cfg = manager.getConfig();
 
-      // UUID is placeholder until Router authentication
-      expect(uuid).toBe("pending-router-derivation");
+      expect(cfg).toHaveProperty("signingPublicKey");
+      expect(cfg).toHaveProperty("signingPrivateKey");
     });
 
     it("should throw error if config not loaded", () => {
-      expect(() => manager.getUuid()).toThrow("not loaded");
-    });
-
-    it("should get full config", async () => {
-      await manager.loadOrCreate("http://test.com");
-      const config = manager.getConfig();
-
-      expect(config).toHaveProperty("uuid");
-      expect(config).toHaveProperty("signingPublicKey");
+      const newManager = new ConfigManager(testConfigFile, testDir);
+      expect(() => newManager.getConfig()).toThrow("not loaded");
     });
   });
 

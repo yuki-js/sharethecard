@@ -19,6 +19,15 @@ export interface ChallengeData {
 export class CardhostRepository {
   private cardhosts = new Map<string, CardhostData>();
   private challenges = new Map<string, ChallengeData>();
+  // Reverse index to keep a stable UUID per public key (within router runtime)
+  private publicKeyToUuid = new Map<string, string>();
+
+  /**
+   * Find UUID by public key, if already registered
+   */
+  findUuidByPublicKey(publicKey: string): string | undefined {
+    return this.publicKeyToUuid.get(publicKey);
+  }
 
   /**
    * Register cardhost
@@ -32,6 +41,8 @@ export class CardhostRepository {
       connectedAt: existing?.connectedAt,
       registeredAt: existing?.registeredAt ?? new Date(),
     });
+    // Maintain reverse index
+    this.publicKeyToUuid.set(publicKey, uuid);
   }
 
   /**
@@ -118,8 +129,7 @@ export class CardhostRepository {
    * Count connected cardhosts
    */
   countConnected(): number {
-    return Array.from(this.cardhosts.values()).filter((c) => c.connected)
-      .length;
+    return Array.from(this.cardhosts.values()).filter((c) => c.connected).length;
   }
 
   /**
@@ -128,5 +138,6 @@ export class CardhostRepository {
   clear(): void {
     this.cardhosts.clear();
     this.challenges.clear();
+    this.publicKeyToUuid.clear();
   }
 }

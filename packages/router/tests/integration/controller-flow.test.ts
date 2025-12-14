@@ -115,7 +115,6 @@ describe("Controller Flow Integration via WebSocket Presentation Layer", () => {
 
       const challengeMsg = JSON.parse(ws.sentMessages[0] as string);
       expect(challengeMsg.type).toBe("auth-challenge");
-      expect(challengeMsg.uuid).toMatch(/^peer_/);
       expect(challengeMsg.challenge).toBeDefined();
 
       // Step 2: Sign and send auth-verify
@@ -137,7 +136,6 @@ describe("Controller Flow Integration via WebSocket Presentation Layer", () => {
 
       const successMsg = JSON.parse(ws.sentMessages[0] as string);
       expect(successMsg.type).toBe("auth-success");
-      expect(successMsg.uuid).toBe(challengeMsg.uuid);
     });
   });
 
@@ -193,15 +191,20 @@ describe("Controller Flow Integration via WebSocket Presentation Layer", () => {
 
       // 3. Controller connects to cardhost
       controllerWs.clearMessages();
+
+      // Obtain cardhost UUID from router-side state (Cardhost never sees its UUID)
+      const list = router.cardhostUseCase.listCardhosts();
+      const chUuid = (list.find((c) => c.connected) || list[0]).uuid;
+
       controllerWs.receive({
         type: "connect-cardhost",
-        cardhostUuid: chChallenge.uuid,
+        cardhostUuid: chUuid,
       });
       await new Promise((r) => setTimeout(r, 50));
 
       const connectedMsg = JSON.parse(controllerWs.sentMessages[0] as string);
       expect(connectedMsg.type).toBe("connected");
-      expect(connectedMsg.cardhostUuid).toBe(chChallenge.uuid);
+      expect(connectedMsg.cardhostUuid).toBe(chUuid);
     });
 
     it("should reject connect-cardhost without authentication", async () => {
@@ -278,9 +281,11 @@ describe("Controller Flow Integration via WebSocket Presentation Layer", () => {
 
       // Connect controller to cardhost
       controllerWs.clearMessages();
+      const list = router.cardhostUseCase.listCardhosts();
+      const chUuid = (list.find((c) => c.connected) || list[0]).uuid;
       controllerWs.receive({
         type: "connect-cardhost",
-        cardhostUuid: chChallenge.uuid,
+        cardhostUuid: chUuid,
       });
       await new Promise((r) => setTimeout(r, 50));
 
