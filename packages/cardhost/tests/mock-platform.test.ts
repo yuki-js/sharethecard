@@ -276,7 +276,10 @@ describe("MockSmartCardPlatform", () => {
 
       const devices = await platform.getDeviceInfo();
       const device = await platform.acquireDevice(devices[0].id);
-      await device.startSession();
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const card = await device.startSession();
+
+      await platform.release();
 
       // Further operations should fail
       await expect(platform.getDeviceInfo()).rejects.toThrow();
