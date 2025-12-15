@@ -19,21 +19,31 @@ export interface CardHostPersistedConfig {
   createdAt: string;
 }
 
+function isCardHostPersistedConfig(obj: unknown): obj is CardHostPersistedConfig {
+  if (typeof obj !== 'object' || obj === null) {
+    return false;
+  }
+  const config = obj as Record<string, unknown>;
+  return (
+    typeof config.signingPublicKey === 'string' &&
+    typeof config.signingPrivateKey === 'string' &&
+    typeof config.routerUrl === 'string' &&
+    typeof config.createdAt === 'string'
+  );
+}
+
 const CONFIG_DIR = join(homedir(), ".cardhost");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
-
 /**
  * Manages Cardhost configuration (without UUID)
  * Ensures keypair survives restarts
  */
 export class ConfigManager {
   private config: CardHostPersistedConfig | null = null;
-
   constructor(
     private configPath: string = CONFIG_FILE,
     private configDir: string = CONFIG_DIR,
   ) {}
-
   /**
    * Load existing config or create new one
    * Keypair is generated once and persisted
@@ -44,35 +54,23 @@ export class ConfigManager {
     if (this.config) {
       return this.config;
     }
-
     this.ensureConfigDir();
-
     if (existsSync(this.configPath)) {
       return this.loadExisting();
     }
-
     return this.createNew(defaultRouterUrl);
   }
-
   /**
    * Load existing configuration from file
    */
   private loadExisting(): CardHostPersistedConfig {
     try {
       const content = readFileSync(this.configPath, "utf8");
-      // Allow extra fields in legacy configs (e.g., uuid), ignore them
-      const parsed = JSON.parse(content) as any;
-
-      const config: CardHostPersistedConfig = {
-        signingPublicKey: parsed.signingPublicKey,
-        signingPrivateKey: parsed.signingPrivateKey,
-        routerUrl: parsed.routerUrl,
-        createdAt: parsed.createdAt,
-      };
-
-      this.validateConfig(config);
-
-      this.config = config;
+      const parsed = JSON.parse(content);
+      if (!isCardHostPersistedConfig(parsed)) {
+        throw new Error('Invalid config structure');
+      }
+      this.config = parsed;
       return this.config;
     } catch (error) {
       throw new Error(

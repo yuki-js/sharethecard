@@ -43,8 +43,15 @@ async function main() {
     .command(
       "connect",
       "Establish authenticated connection to Router using Cardhost UUID",
-      (y: Argv) => y,
-      (argv: unknown) => runConnect(argv as any),
+      (y: Argv) =>
+        y
+          .option("router", { type: "string", desc: "Router address" })
+          .option("cardhost", { type: "string", desc: "Cardhost UUID" })
+          .option("verbose", {
+            type: "boolean",
+            desc: "Enable verbose logging",
+          }),
+      (argv) => runConnect(argv),
     )
     .command(
       "send",
@@ -55,13 +62,20 @@ async function main() {
           demandOption: true,
           desc: "APDU command hex string",
         }),
-      (argv: unknown) => runSend(argv as any),
+      (argv) => runSend(argv),
     )
     .command(
       "interactive",
       "Start REPL-like interactive mode for repeated APDU sends",
-      (y: Argv) => y,
-      (argv: unknown) => runInteractive(argv as any),
+      (y: Argv) =>
+        y
+          .option("router", { type: "string", desc: "Router address" })
+          .option("cardhost", { type: "string", desc: "Cardhost UUID" })
+          .option("verbose", {
+            type: "boolean",
+            desc: "Enable verbose logging",
+          }),
+      (argv) => runInteractive(argv),
     )
     .command(
       "script",
@@ -72,13 +86,20 @@ async function main() {
           demandOption: true,
           desc: 'Path to JSON file containing [{"apdu":"HEX"}, ...]',
         }),
-      (argv: unknown) => runScript(argv as any),
+      (argv) => runScript(argv),
     )
     .command(
       "list",
       "List Cardhosts known to the Router",
-      (y: Argv) => y,
-      (argv: unknown) => runList(argv as any),
+      (y: Argv) =>
+        y
+          .option("router", { type: "string", desc: "Router address" })
+          .option("verbose", {
+            type: "boolean",
+            desc: "Enable verbose logging",
+          }),
+
+      (argv) => runList(argv),
     )
     .help()
     .alias("h", "help")
@@ -88,7 +109,6 @@ async function main() {
 }
 
 main().catch((err) => {
-   
   console.error(chalk.red(err instanceof Error ? err.message : String(err)));
   process.exitCode = 1;
 });

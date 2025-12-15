@@ -26,14 +26,12 @@ export async function run(argv: SendCommandArgs): Promise<void> {
   }
 
   if (!router || !cardhost) {
-    console.error(
-      chalk.red("Missing required options: --router, --cardhost"),
-    );
+    console.error(chalk.red("Missing required options: --router, --cardhost"));
     process.exitCode = 2;
     return;
   }
   // Parse APDU hex string
-  let bytes: Uint8Array;
+  let bytes: Uint8Array<ArrayBuffer>;
   try {
     bytes = parseApduHex(apdu);
   } catch {
@@ -66,10 +64,7 @@ export async function run(argv: SendCommandArgs): Promise<void> {
       console.info(chalk.gray(`[verbose] Sending APDU: ${apdu}`));
     }
 
-    // Parse hex to CommandApdu (parsed earlier)
-
-    const commandBytes = Uint8Array.from(bytes as unknown as Uint8Array);
-    const command = CommandApdu.fromUint8Array(commandBytes as any);
+    const command = CommandApdu.fromUint8Array(bytes);
     const response = await client.transmit(command);
 
     // Display response

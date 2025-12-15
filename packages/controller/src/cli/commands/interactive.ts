@@ -21,9 +21,7 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
   const { router, cardhost, verbose } = argv;
 
   if (!router || !cardhost) {
-    console.error(
-      chalk.red("Missing required options: --router, --cardhost"),
-    );
+    console.error(chalk.red("Missing required options: --router, --cardhost"));
     process.exitCode = 2;
     return;
   }
@@ -76,9 +74,7 @@ export async function run(argv: InteractiveCommandArgs): Promise<void> {
         try {
           // Parse hex string
           const bytes = parseApduHex(hex);
-
-          const commandBytes = Uint8Array.from(bytes as unknown as Uint8Array);
-          const command = CommandApdu.fromUint8Array(commandBytes as any);
+          const command = CommandApdu.fromUint8Array(bytes);
 
           if (verbose) {
             console.info(chalk.gray(`[verbose] Sending: ${hex}`));

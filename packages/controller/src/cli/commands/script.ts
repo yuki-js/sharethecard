@@ -28,9 +28,7 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
   }
 
   if (!router || !cardhost) {
-    console.error(
-      chalk.red("Missing required options: --router, --cardhost"),
-    );
+    console.error(chalk.red("Missing required options: --router, --cardhost"));
     process.exitCode = 2;
     return;
   }
@@ -91,8 +89,7 @@ export async function run(argv: ScriptCommandArgs): Promise<void> {
         // Parse hex
         const bytes = parseApduHex(cmd.apdu);
 
-        const commandBytes = Uint8Array.from(bytes as unknown as Uint8Array);
-        const command = CommandApdu.fromUint8Array(commandBytes as any);
+        const command = CommandApdu.fromUint8Array(bytes);
 
         if (verbose) {
           console.info(
