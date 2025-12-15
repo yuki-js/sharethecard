@@ -1,11 +1,13 @@
 /**
  * Isomorphic WebSocket helpers (DRY)
- * - Works in both Browser (window.WebSocket) and Node (ws) without external deps
+ * - Works in both Browser and Node via isomorphic-ws
  * - Consolidates WsContextImpl and MessageRouter duplicated across controller/cardhost
  *
  * Usage:
  *   import { WsContextImpl, MessageRouter } from "@remote-apdu/shared";
  */
+
+import WebSocket from "isomorphic-ws";
 
 /**
  * Base envelope for message routing.
@@ -17,31 +19,6 @@ export interface BaseMessage {
 }
 
 /**
- * Minimal isomorphic WebSocket interface used by this module.
- * Compatible with browser WebSocket and node 'ws'.
- */
-export interface WebSocketLike {
-  readyState: number;
-  send(data: any, cb?: (err?: Error) => void): any;
-  close(code?: number, reason?: string): any;
-
-  // Node 'ws' style
-  on?: (event: string, listener: (...args: any[]) => void) => any;
-  once?: (event: string, listener: (...args: any[]) => void) => any;
-  off?: (event: string, listener: (...args: any[]) => void) => any;
-
-  // Browser style
-  addEventListener?: (type: string, listener: (ev: any) => void) => any;
-  removeEventListener?: (type: string, listener: (ev: any) => void) => any;
-  onmessage?: any;
-  onclose?: any;
-
-  // Optional constants when present on constructor
-  OPEN?: number;
-  CLOSED?: number;
-}
-
-/**
  * Context state bag, extensible by callers.
  */
 export type WsContextState = {
@@ -49,10 +26,10 @@ export type WsContextState = {
 };
 
 /**
- * Unified WebSocket context interface.
+ * Unified WebSocket context interface (isomorphic-ws instance).
+ * Exposes no raw socket; the underlying WebSocket is internal to the context.
  */
 export interface WsContext<T extends WsContextState = WsContextState> {
-  ws: WebSocketLike;
   state: T;
 
   // Messaging
@@ -69,106 +46,75 @@ export interface WsContext<T extends WsContextState = WsContextState> {
 }
 
 /**
- * Normalize incoming WebSocket data to UTF-8 string.
+ * Normalize incoming WebSocket data to UTF-8 string (minimal).
+ * - Prefer event.data if present, otherwise use input directly.
+ * - Decode ArrayBuffer or ArrayBufferView via TextDecoder.
+ * - Fallback to String() for non-binary payloads.
  */
 function normalizeWsData(input: unknown): string {
-  try {
-    // Browser MessageEvent
-    if (input && typeof (input as any).data !== "undefined") {
-      const data = (input as any).data;
-      if (typeof data === "string") return data;
-      if (typeof (globalThis as any).Buffer !== "undefined" && data instanceof (globalThis as any).Buffer) {
-        return (data as any).toString("utf8");
-      }
-      if (data instanceof ArrayBuffer) {
-        return new TextDecoder().decode(new Uint8Array(data));
-      }
-      return String(data);
-    }
+  const candidate =
+    input && typeof input === "object" && "data" in (input as any)
+      ? (input as any).data
+      : input;
 
-    // Node Buffer
-    if (typeof (globalThis as any).Buffer !== "undefined" && input instanceof (globalThis as any).Buffer) {
-      return (input as any).toString("utf8");
-    }
+  if (typeof candidate === "string") return candidate;
 
-    // ArrayBuffer
-    if (input instanceof ArrayBuffer) {
-      return new TextDecoder().decode(new Uint8Array(input));
-    }
-
-    // Plain string or other
-    if (typeof input === "string") return input;
-    return String(input);
-  } catch {
-    return String(input ?? "");
+  if (candidate instanceof ArrayBuffer) {
+    return new TextDecoder().decode(new Uint8Array(candidate));
   }
+
+  if (ArrayBuffer.isView(candidate)) {
+    const view = candidate as ArrayBufferView;
+    return new TextDecoder().decode(
+      new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+    );
+  }
+
+  return String(candidate);
 }
 
 /**
- * Attach event listener in both Node and Browser environments
+ * Runtime validator for BaseMessage without using 'as'.
+ * Ensures 'type' is string and optional 'id' is string when present.
  */
-function addWsListener(ws: WebSocketLike, event: "message" | "close", handler: (ev: any) => void): void {
-  const anyWs = ws as any;
-  if (typeof anyWs.on === "function") {
-    anyWs.on(event, handler);
-  } else if (typeof anyWs.addEventListener === "function") {
-    anyWs.addEventListener(event, handler);
-  } else {
-    // Fallback: property assignment (browser)
-    const prop = "on" + event;
-    if (prop in anyWs) {
-      anyWs[prop] = handler;
-    }
-  }
-}
-
-/**
- * Attach one-time listener for close events (both Node and Browser)
- */
-function onceWsClose(ws: WebSocketLike, handler: () => void): void {
-  const anyWs = ws as any;
-  if (typeof anyWs.once === "function") {
-    anyWs.once("close", handler);
-    return;
-  }
-  const wrapped = () => {
-    handler();
-    if (typeof anyWs.removeEventListener === "function") {
-      anyWs.removeEventListener("close", wrapped as any);
-    } else {
-      anyWs.onclose = null;
-    }
-  };
-  if (typeof anyWs.addEventListener === "function") {
-    anyWs.addEventListener("close", wrapped as any);
-  } else {
-    anyWs.onclose = wrapped;
-  }
+function isBaseMessage(value: unknown): value is BaseMessage {
+  if (typeof value !== "object" || value === null) return false;
+  const typeVal = Reflect.get(value, "type");
+  if (typeof typeVal !== "string") return false;
+  const idVal = Reflect.get(value, "id");
+  if (idVal !== undefined && typeof idVal !== "string") return false;
+  return true;
 }
 
 /**
  * WsContext implementation (isomorphic)
  */
-export class WsContextImpl<T extends WsContextState = WsContextState> implements WsContext<T> {
+export class WsContextImpl<T extends WsContextState = WsContextState>
+  implements WsContext<T>
+{
+  private socket: WebSocket;
   private pendingMessages = new Map<string, (msg: BaseMessage) => void>();
   private pendingIds = new Map<string, (msg: BaseMessage) => void>();
   private messageListenerAttached = false;
   private closed = false;
 
-  constructor(
-    public ws: WebSocketLike,
-    public state: T,
-  ) {
+  constructor(socket: WebSocket, public state: T) {
+    this.socket = socket;
     this.attachMessageListener();
   }
 
   private attachMessageListener(): void {
     if (this.messageListenerAttached) return;
 
-    addWsListener(this.ws, "message", (data: any) => {
+    this.socket.addEventListener("message", (event: unknown) => {
       try {
-        const text = normalizeWsData(data);
-        const msg = JSON.parse(text) as BaseMessage;
+        const text = normalizeWsData(event);
+        const raw: unknown = JSON.parse(text);
+        if (!isBaseMessage(raw)) {
+          // Ignore messages that don't conform to BaseMessage
+          return;
+        }
+        const msg = raw;
 
         // id-correlated messages
         if (msg.id) {
@@ -197,24 +143,11 @@ export class WsContextImpl<T extends WsContextState = WsContextState> implements
   async send(message: BaseMessage): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const sendFn: any = (this.ws as any).send;
-        if (typeof sendFn === "function") {
-          // If node 'ws', callback form supported
-          if (sendFn.length >= 2) {
-            sendFn.call(this.ws, JSON.stringify(message), (err?: any) => {
-              if (err) reject(err);
-              else resolve();
-            });
-            return;
-          }
-          // Browser or generic
-          sendFn.call(this.ws, JSON.stringify(message));
-          resolve();
-        } else {
-          reject(new Error("WebSocket.send is not a function"));
-        }
+        const data = JSON.stringify(message);
+        this.socket.send(data);
+        resolve();
       } catch (err) {
-        reject(err as Error);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
   }
@@ -224,7 +157,7 @@ export class WsContextImpl<T extends WsContextState = WsContextState> implements
       type: "error",
       id,
       error: { code, message },
-    } as BaseMessage);
+    });
   }
 
   async waitForMessage(type: string, timeout = 5000): Promise<BaseMessage> {
@@ -258,14 +191,21 @@ export class WsContextImpl<T extends WsContextState = WsContextState> implements
   async close(code = 1000, reason = ""): Promise<void> {
     this.closed = true;
     return new Promise((resolve) => {
-      const CLOSED = (this.ws as any).CLOSED ?? 3;
-      if (this.ws.readyState === CLOSED) {
+      if (this.socket.readyState === WebSocket.CLOSED) {
         resolve();
         return;
       }
-      onceWsClose(this.ws, resolve);
+      const onClose = () => {
+        try {
+          this.socket.removeEventListener("close", onClose as any);
+        } catch {
+          // ignore if not supported
+        }
+        resolve();
+      };
+      this.socket.addEventListener("close", onClose as any);
       try {
-        this.ws.close(code, reason);
+        this.socket.close(code, reason);
       } catch {
         resolve();
       }
@@ -273,8 +213,7 @@ export class WsContextImpl<T extends WsContextState = WsContextState> implements
   }
 
   isOpen(): boolean {
-    const OPEN = (this.ws as any).OPEN ?? 1;
-    return !this.closed && this.ws.readyState === OPEN;
+    return !this.closed && this.socket.readyState === WebSocket.OPEN;
   }
 }
 
@@ -313,7 +252,7 @@ export class MessageRouter<T extends WsContextState = WsContextState> {
       await ctx.sendError(
         "UNKNOWN_MESSAGE_TYPE",
         `Unknown message type: ${msg.type}`,
-        (msg as any).id,
+        msg.id,
       );
     }
   }

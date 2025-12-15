@@ -95,9 +95,7 @@ export class CardhostService {
   private async initializeTransport(): Promise<void> {
     // Check if we need to reinitialize
     const needsReinit =
-      !this.transport ||
-      !this.adapter ||
-      !this.transport.isConnected();
+      !this.transport || !this.adapter || !this.transport.isConnected();
 
     if (!needsReinit) {
       logger.info("Transport/adapter already active, skipping");
@@ -116,9 +114,13 @@ export class CardhostService {
 
     logger.info("Controller connected, initializing transport/adapter");
 
+    if (!this.authenticator) {
+      throw new Error("Authenticator not initialized");
+    }
+
     // 論理チャネル層：RPC通信用（E2E暗号化もここに将来追加）
     this.transport = new RouterServerTransport({
-      authenticator: this.authenticator!,
+      authenticator: this.authenticator,
     });
 
     // アプリケーション層：jsapdu-over-ip RPC処理

@@ -4,7 +4,7 @@ import type {
   RpcResponse,
   RpcEvent,
 } from "@aokiapp/jsapdu-over-ip";
-import type { WsContext, WebSocketLike } from "@remote-apdu/shared";
+import type { WsContext } from "@remote-apdu/shared";
 import {
   createLogger,
   WsContextImpl,
@@ -30,7 +30,7 @@ export interface WsAuthenticatorConfig {
  * さらに connect-cardhost フロー実行
  */
 export class WsAuthenticator {
-  private ws: WebSocketLike | null = null;
+  private ws: WebSocket | null = null;
   private controllerId: string | null = null;
   private challenge: string | null = null;
   private authenticated = false;
@@ -52,7 +52,7 @@ export class WsAuthenticator {
         .replace(/^https:/, "wss:")
         .replace(/\/$/, "");
 
-      this.ws = new WebSocket(`${wsUrl}/ws/controller`) as WebSocketLike;
+      this.ws = new WebSocket(`${wsUrl}/ws/controller`);
 
       if (!this.ws) {
         return reject(new Error("WebSocket failed to initialize."));
@@ -184,7 +184,7 @@ export class WsAuthenticator {
   /**
    * 認証済みWebSocketを取得（RouterClientTransportで使用）
    */
-  getWebSocket(): WebSocketLike {
+  getWebSocket(): WebSocket {
     if (!this.ws || !this.connected) {
       throw new Error("Not authenticated/connected");
     }
@@ -234,7 +234,7 @@ export interface RouterClientTransportConfig {
  * 注: 認証はWsAuthenticatorが行済みであることを前提
  */
 export class RouterClientTransport implements ClientTransport {
-  private ws: WebSocketLike | null = null;
+  private ws: WebSocket | null = null;
   private eventCallbacks: Set<(event: RpcEvent) => void> = new Set();
   private pendingCalls = new Map<string, (response: RpcResponse) => void>();
   private connected = false;

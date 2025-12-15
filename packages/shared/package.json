@@ -18,5 +18,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "isomorphic-ws": "^5.0.0"
   }
 }

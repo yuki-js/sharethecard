@@ -10,7 +10,7 @@ import {
   MessageRouter,
   signChallenge,
 } from "@remote-apdu/shared";
-import type { WsContext, WebSocketLike } from "@remote-apdu/shared";
+import type { WsContext } from "@remote-apdu/shared";
 import WebSocket from "isomorphic-ws";
 
 const logger = createLogger("cardhost:transport");
@@ -29,7 +29,7 @@ export interface WsAuthenticatorConfig {
  * Cardhost は自分の UUID を知りません（Router 内部でのみ保持）
  */
 export class WsAuthenticator {
-  private ws: WebSocketLike | null = null;
+  private ws: WebSocket | null = null;
   private challenge: string | null = null;
   private authenticated = false;
 
@@ -49,7 +49,7 @@ export class WsAuthenticator {
         .replace(/^https:/, "wss:")
         .replace(/\/$/, "");
 
-      this.ws = new WebSocket(`${wsUrl}/ws/cardhost`) as WebSocketLike;
+      this.ws = new WebSocket(`${wsUrl}/ws/cardhost`);
 
       if (!this.ws) {
         return reject(new Error("WebSocket failed to initialize."));
@@ -183,7 +183,7 @@ export class WsAuthenticator {
   /**
    * 認証済みWebSocketを取得（RouterServerTransportで使用）
    */
-  getWebSocket(): WebSocketLike {
+  getWebSocket(): WebSocket {
     if (!this.ws || !this.authenticated) {
       throw new Error("Not authenticated");
     }
@@ -223,7 +223,7 @@ export interface RouterTransportConfig {
  * 注: 認証はWsAuthenticatorが行済みであることを前提
  */
 export class RouterServerTransport implements ServerTransport {
-  private ws: WebSocketLike | null = null;
+  private ws: WebSocket | null = null;
   private requestHandler?: (request: RpcRequest) => Promise<RpcResponse>;
   private connected = false;
 
