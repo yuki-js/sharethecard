@@ -61,8 +61,8 @@ export async function startServer(
     res.end(JSON.stringify({ error: "Not found" }));
   });
 
-  console.log("Starting Router Server...");
-  console.log(`Listening on http://${host}:${port}`);
+  console.info("Starting Router Server...");
+  console.info(`Listening on http://${host}:${port}`);
 
   // Create WebSocket server
   const wss = new WebSocketServer({ server: httpServer });
@@ -121,9 +121,9 @@ async function main(): Promise<void> {
 
   // Graceful shutdown
   const shutdown = async () => {
-    console.log("\nShutting down Router...");
+    console.info("\nShutting down Router...");
     await runtime.stop();
-    console.log("✓ Stopped");
+    console.info("✓ Stopped");
     process.exit(0);
   };
 

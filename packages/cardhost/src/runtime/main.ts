@@ -7,7 +7,6 @@
  * Spec: docs/what-to-make.md Section 3.5 - 共通項
  */
 
-import { PcscPlatformManager } from "@aokiapp/jsapdu-pcsc";
 
 import {
   CardhostService,
@@ -30,7 +29,7 @@ function parseArgs(): { routerUrl: string; useMock: boolean } {
     } else if (args[i] === "--mock") {
       useMock = true;
     } else if (args[i] === "--help" || args[i] === "-h") {
-      console.log(`
+      console.info(`
 Cardhost Service - Remote APDU Communication System
 
 Usage: cardhost [options]
@@ -67,9 +66,9 @@ The service will:
 async function main(): Promise<void> {
   const { routerUrl, useMock } = parseArgs();
 
-  console.log("Starting Cardhost Service...");
-  console.log(`Router URL: ${routerUrl}`);
-  console.log(`Platform: ${useMock ? "Mock" : "PC/SC"}`);
+  console.info("Starting Cardhost Service...");
+  console.info(`Router URL: ${routerUrl}`);
+  console.info(`Platform: ${useMock ? "Mock" : "PC/SC"}`);
 
   // Create service with optional mock platform
   let platform;
@@ -90,8 +89,8 @@ async function main(): Promise<void> {
   // Connect to Router
   try {
     await service.connect(routerUrl);
-    console.log(`✓ Connected to Router`);
-    console.log(`✓ Ready to serve APDU requests`);
+    console.info(`✓ Connected to Router`);
+    console.info(`✓ Ready to serve APDU requests`);
   } catch (error) {
     console.error("Failed to connect:", (error as Error).message);
     process.exit(1);
@@ -99,14 +98,14 @@ async function main(): Promise<void> {
 
   // Graceful shutdown
   process.on("SIGINT", async () => {
-    console.log("\nShutting down Cardhost...");
+    console.info("\nShutting down Cardhost...");
     await service.disconnect();
-    console.log("✓ Disconnected");
+    console.info("✓ Disconnected");
     process.exit(0);
   });
 
   process.on("SIGTERM", async () => {
-    console.log("\nShutting down Cardhost...");
+    console.info("\nShutting down Cardhost...");
     await service.disconnect();
     process.exit(0);
   });

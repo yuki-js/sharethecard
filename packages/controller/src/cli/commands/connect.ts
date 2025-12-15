@@ -49,9 +49,9 @@ export async function run(argv: ConnectCommandArgs): Promise<void> {
 
     // Cleanup on exit
     const cleanup = async () => {
-      console.log("\nDisconnecting...");
+      console.info("\nDisconnecting...");
       await client.disconnect();
-      console.log("✓ Disconnected");
+      console.info("✓ Disconnected");
       process.exit(0);
     };
 

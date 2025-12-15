@@ -8,8 +8,8 @@
  */
 
 import { CommandApdu } from "@aokiapp/jsapdu-interface";
-import { CardhostService, MockSmartCardPlatform } from "@remote-apdu/cardhost";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { MockSmartCardPlatform } from "@remote-apdu/cardhost";
+import { describe, it, expect } from "vitest";
 
 describe("Integration: Cardhost + jsapdu", () => {
   describe("Platform and Adapter Integration", () => {

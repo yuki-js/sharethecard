@@ -65,6 +65,7 @@ describe("MockSmartCardPlatform", () => {
       await platform.init();
 
       {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         await using _p = platform;
         expect(platform.isInitialized()).toBe(true);
       }
@@ -275,9 +276,7 @@ describe("MockSmartCardPlatform", () => {
 
       const devices = await platform.getDeviceInfo();
       const device = await platform.acquireDevice(devices[0].id);
-      const card = await device.startSession();
-
-      await platform.release();
+      await device.startSession();
 
       // Further operations should fail
       await expect(platform.getDeviceInfo()).rejects.toThrow();

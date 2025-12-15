@@ -14,7 +14,7 @@ export type ListCommandArgs = {
  * To connect to a Cardhost:
  * $ controller send --router <url> --cardhost <uuid> --apdu "..."
  */
-export async function run(argv: ListCommandArgs): Promise<void> {
+export async function run(): Promise<void> {
   console.error(chalk.red("The 'list' command is no longer supported."));
   console.error(chalk.gray("In the WebSocket-only architecture, controllers connect directly to specific cardhosts."));
   console.error(chalk.gray("Provide the cardhost UUID when connecting."));

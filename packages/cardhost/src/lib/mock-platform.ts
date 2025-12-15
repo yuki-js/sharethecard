@@ -12,7 +12,6 @@ import {
   SmartCardDeviceInfo,
   CommandApdu,
   ResponseApdu,
-  type NfcAntennaInfo,
 } from "@aokiapp/jsapdu-interface";
 
 /**

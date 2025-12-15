@@ -10,7 +10,7 @@
  * derived from their public key.
  */
 
-const crypto = globalThis.crypto;
+
 
 import { deriveIdFromPublicKeyHash } from "@remote-apdu/shared";
 
