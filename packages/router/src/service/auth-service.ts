@@ -3,10 +3,12 @@
  * Handles bearer token validation and cardhost public key authentication
  */
 
-import { generateRandomBase64 } from "../shared/random.js";
-import { CardhostRepository } from "../repository/cardhost-repository.js";
-import { verifyEd25519Signature } from "../shared/signature-verification.js";
 import { randomUUID } from "node:crypto";
+
+import type { CardhostRepository } from "../repository/cardhost-repository.js";
+import { generateRandomBase64 } from "../shared/random.js";
+import { verifyEd25519Signature } from "../shared/signature-verification.js";
+
 
 export class AuthService {
   private readonly CHALLENGE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes

@@ -4,9 +4,10 @@
  */
 
 import type { Router } from "../../src/router.js";
-import type { ControllerUseCase } from "../../src/usecase/controller-usecase.js";
-import type { CardhostUseCase } from "../../src/usecase/cardhost-usecase.js";
 import type { AuthService } from "../../src/service/auth-service.js";
+import type { CardhostUseCase } from "../../src/usecase/cardhost-usecase.js";
+import type { ControllerUseCase } from "../../src/usecase/controller-usecase.js";
+
 import { generateEd25519KeyPair, signChallenge } from "./crypto.js";
 
 /**

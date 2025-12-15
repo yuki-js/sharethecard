@@ -12,8 +12,9 @@
  * 7. rpc-request/response: Normal RPC flow
  */
 
-import type { WebSocket } from "ws";
 import { createLogger } from "@remote-apdu/shared";
+import type { WebSocket } from "ws";
+
 import type { Router } from "../../router.js";
 
 const logger = createLogger("router:controller-ws");

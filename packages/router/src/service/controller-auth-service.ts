@@ -6,9 +6,9 @@
  * similar to cardhosts.
  */
 
-import { generateRandomBase64 } from "../shared/random.js";
-import { ControllerRepository } from "../repository/controller-repository.js";
+import type { ControllerRepository } from "../repository/controller-repository.js";
 import { generatePeerId, verifyPeerId } from "../shared/peer-id.js";
+import { generateRandomBase64 } from "../shared/random.js";
 import { verifyEd25519Signature } from "../shared/signature-verification.js";
 
 export class ControllerAuthService {

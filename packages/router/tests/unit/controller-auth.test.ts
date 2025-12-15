@@ -6,15 +6,16 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { SessionRepository } from "../../src/repository/session-repository.js";
+
 import { CardhostRepository } from "../../src/repository/cardhost-repository.js";
 import { ControllerRepository } from "../../src/repository/controller-repository.js";
-import { SessionService } from "../../src/service/session-service.js";
+import { SessionRepository } from "../../src/repository/session-repository.js";
 import { AuthService } from "../../src/service/auth-service.js";
 import { ControllerAuthService } from "../../src/service/controller-auth-service.js";
+import { SessionService } from "../../src/service/session-service.js";
 import { ControllerUseCase } from "../../src/usecase/controller-usecase.js";
-import { generateEd25519KeyPair, signChallenge } from "../helpers/crypto.js";
 import { authenticateCardhostDirect } from "../helpers/auth-helpers.js";
+import { generateEd25519KeyPair, signChallenge } from "../helpers/crypto.js";
 
 describe("Controller Authentication", () => {
   let auth: ControllerUseCase;

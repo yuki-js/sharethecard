@@ -3,8 +3,8 @@
  * Business logic for transparent data relay between controller and cardhost
  */
 
-import { TransportService } from "../service/transport-service.js";
-import { SessionService } from "../service/session-service.js";
+import type { SessionService } from "../service/session-service.js";
+import type { TransportService } from "../service/transport-service.js";
 
 export class TransportUseCase {
   constructor(

@@ -3,9 +3,9 @@
  * Business logic for cardhost authentication and connection management
  */
 
+import type { CardhostRepository } from "../repository/cardhost-repository.js";
+import type { AuthService } from "../service/auth-service.js";
 import type { CardhostInfo } from "../shared/types.js";
-import { AuthService } from "../service/auth-service.js";
-import { CardhostRepository } from "../repository/cardhost-repository.js";
 
 export class CardhostUseCase {
   constructor(

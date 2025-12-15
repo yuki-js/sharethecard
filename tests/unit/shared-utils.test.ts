@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import { toBase64, fromBase64, toUtf8, prepareSigningPayload } from "../../packages/shared/src/utils/encoding.ts";
 import { canonicalizeJson } from "../../packages/shared/src/utils/canonical-json.ts";
+import { toBase64, fromBase64, toUtf8, prepareSigningPayload } from "../../packages/shared/src/utils/encoding.ts";
 
 describe("shared utils - encoding/base64", () => {
   it("round-trips base64 encode/decode", () => {

@@ -7,16 +7,16 @@
  * Spec: docs/what-to-make.md Section 3.1 & 3.5
  */
 
+import chalk from "chalk";
 import yargs from "yargs";
 import type { Argv } from "yargs";
 import { hideBin } from "yargs/helpers";
-import chalk from "chalk";
 
 import { run as runConnect } from "./commands/connect.js";
-import { run as runSend } from "./commands/send.js";
 import { run as runInteractive } from "./commands/interactive.js";
-import { run as runScript } from "./commands/script.js";
 import { run as runList } from "./commands/list.js";
+import { run as runScript } from "./commands/script.js";
+import { run as runSend } from "./commands/send.js";
 
 async function main() {
   await yargs(hideBin(process.argv))
@@ -88,7 +88,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
+   
   console.error(chalk.red(err instanceof Error ? err.message : String(err)));
   process.exitCode = 1;
 });

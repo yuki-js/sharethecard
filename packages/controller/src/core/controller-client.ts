@@ -7,14 +7,16 @@
  * Reference: research/jsapdu-over-ip/src/client/platform-proxy.ts
  */
 
-import { RemoteSmartCardPlatform } from "@aokiapp/jsapdu-over-ip/client";
-import {
+import type {
   CommandApdu,
-  ResponseApdu,
+  ResponseApdu} from "@aokiapp/jsapdu-interface";
+import {
   SmartCardError,
 } from "@aokiapp/jsapdu-interface";
+import { RemoteSmartCardPlatform } from "@aokiapp/jsapdu-over-ip/client";
+
+import type { KeyManager } from "./key-manager.js";
 import { WsAuthenticator, RouterClientTransport } from "./router-transport.js";
-import { KeyManager } from "./key-manager.js";
 
 /**
  * Controller Configuration

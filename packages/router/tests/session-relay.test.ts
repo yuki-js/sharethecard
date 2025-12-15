@@ -10,8 +10,8 @@
  * Spec: docs/what-to-make.md Section 6.2.1 - ユニットテスト
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Router } from "@remote-apdu/router";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 describe("Session and Transport Management - Unit via Router", () => {
   let router: Router;

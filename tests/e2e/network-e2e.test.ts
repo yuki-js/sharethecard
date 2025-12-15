@@ -11,12 +11,10 @@
  * - Controller transmits APDU via WebSocket RPC
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-// Start the real runtime server inside this process on a dedicated port
-import { startServer } from "@remote-apdu/router";
-
-// Cardhost (server-side) and Controller (client-side) libraries
 import {
   CardhostService,
   MockSmartCardPlatform,
@@ -24,9 +22,13 @@ import {
 } from "@remote-apdu/cardhost";
 import { ControllerClient, CommandApdu, KeyManager } from "@remote-apdu/controller";
 import { NodeKeyStore } from "@remote-apdu/controller/store";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { rmSync } from "node:fs";
+import { startServer } from "@remote-apdu/router";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+
+// Start the real runtime server inside this process on a dedicated port
+
+// Cardhost (server-side) and Controller (client-side) libraries
+
 
 describe.sequential("E2E: Real network end-to-end", () => {
   const HOST = "127.0.0.1";

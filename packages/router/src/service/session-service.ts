@@ -6,9 +6,10 @@
  * Authentication is handled separately via public key cryptography.
  */
 
+import type { SessionRepository} from "../repository/session-repository.js";
+import { type SessionData } from "../repository/session-repository.js";
 import { generateRandomBase64 } from "../shared/random.js";
 import type { SessionToken } from "../shared/types.js";
-import { SessionRepository, type SessionData } from "../repository/session-repository.js";
 
 export class SessionService {
   private readonly SESSION_DURATION_MS = 60 * 60 * 1000; // 1 hour

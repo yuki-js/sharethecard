@@ -7,9 +7,9 @@
  * Spec: docs/what-to-make.md Section 6.2.2 - 結合テスト
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { CardhostService, MockSmartCardPlatform } from "@remote-apdu/cardhost";
 import { CommandApdu } from "@aokiapp/jsapdu-interface";
+import { CardhostService, MockSmartCardPlatform } from "@remote-apdu/cardhost";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 describe("Integration: Cardhost + jsapdu", () => {
   describe("Platform and Adapter Integration", () => {

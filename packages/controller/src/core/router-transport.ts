@@ -1,18 +1,18 @@
-import WebSocket from "isomorphic-ws";
 import type { ClientTransport } from "@aokiapp/jsapdu-over-ip";
 import type {
   RpcRequest,
   RpcResponse,
   RpcEvent,
 } from "@aokiapp/jsapdu-over-ip";
+import type { WsContext, WebSocketLike } from "@remote-apdu/shared";
 import {
   createLogger,
   WsContextImpl,
   MessageRouter,
   signChallenge,
 } from "@remote-apdu/shared";
-import type { WsContext, WebSocketLike } from "@remote-apdu/shared";
 import { verifyDerivedPeerId as verifyDerivedControllerId } from "@remote-apdu/shared";
+import WebSocket from "isomorphic-ws";
 
 const logger = createLogger("controller:transport");
 

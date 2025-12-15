@@ -1,4 +1,3 @@
-import WebSocket from "isomorphic-ws";
 import type { ServerTransport } from "@aokiapp/jsapdu-over-ip";
 import type {
   RpcRequest,
@@ -12,6 +11,7 @@ import {
   signChallenge,
 } from "@remote-apdu/shared";
 import type { WsContext, WebSocketLike } from "@remote-apdu/shared";
+import WebSocket from "isomorphic-ws";
 
 const logger = createLogger("cardhost:transport");
 

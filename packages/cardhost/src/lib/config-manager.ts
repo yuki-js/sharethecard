@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
 const crypto = globalThis.crypto;
 import { toBase64 } from "@remote-apdu/shared";
 

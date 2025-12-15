@@ -11,12 +11,13 @@
  * 遅延初期化：Controller接続時に初めて transport/adapter を作成
  */
 
-import { SmartCardPlatformAdapter } from "@aokiapp/jsapdu-over-ip/server";
 import type { SmartCardPlatform } from "@aokiapp/jsapdu-interface";
 import { SmartCardError } from "@aokiapp/jsapdu-interface";
-import { ConfigManager } from "./config-manager.js";
-import { WsAuthenticator, RouterServerTransport } from "./router-transport.js";
+import { SmartCardPlatformAdapter } from "@aokiapp/jsapdu-over-ip/server";
 import { createLogger } from "@remote-apdu/shared";
+
+import type { ConfigManager } from "./config-manager.js";
+import { WsAuthenticator, RouterServerTransport } from "./router-transport.js";
 
 const logger = createLogger("cardhost:service");
 

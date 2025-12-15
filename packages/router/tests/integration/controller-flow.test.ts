@@ -8,9 +8,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Router } from "../../src/router.js";
-import { handleControllerWebSocket } from "../../src/presentation/ws/controller-ws.js";
+
 import { handleCardhostWebSocket } from "../../src/presentation/ws/cardhost-ws.js";
+import { handleControllerWebSocket } from "../../src/presentation/ws/controller-ws.js";
+import { Router } from "../../src/router.js";
 import { generateEd25519KeyPair, signChallenge } from "../helpers/crypto.js";
 import { MockWebSocket } from "../helpers/mock-websocket.js";
 

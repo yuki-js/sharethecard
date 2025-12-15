@@ -12,10 +12,10 @@
  * Spec: docs/what-to-make.md Section 6.2.2 - 結合テスト
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { Router } from "@remote-apdu/router";
-import { MockSmartCardPlatform } from "@remote-apdu/cardhost";
 import { CommandApdu } from "@aokiapp/jsapdu-interface";
+import { MockSmartCardPlatform } from "@remote-apdu/cardhost";
+import { Router } from "@remote-apdu/router";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 describe("Integration: Component Interaction (Library-level)", () => {
   let router: Router;

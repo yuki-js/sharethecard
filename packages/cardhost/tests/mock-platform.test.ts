@@ -7,9 +7,10 @@
  * Spec: docs/what-to-make.md Section 6.2.1 - ユニットテスト
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
-import { MockSmartCardPlatform } from "../src/lib/mock-platform.js";
 import { CommandApdu } from "@aokiapp/jsapdu-interface";
+import { describe, it, expect, beforeEach } from "vitest";
+
+import { MockSmartCardPlatform } from "../src/lib/mock-platform.js";
 
 describe("MockSmartCardPlatform", () => {
   describe("Initialization", () => {

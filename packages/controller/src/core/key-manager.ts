@@ -11,6 +11,7 @@ import {
   prepareSigningPayload,
   deriveIdFromPublicKeyHash,
 } from "@remote-apdu/shared";
+
 import { exportEd25519KeyPair } from "./crypto-utils.js";
 import type { IKeyStore } from "./store/interface.js";
 

@@ -1,6 +1,7 @@
 import { promises as fs, existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
 import type { IKeyStore } from "../../core/store/interface.js";
 
 const DEFAULT_KEY_DIR = join(homedir(), ".controller");

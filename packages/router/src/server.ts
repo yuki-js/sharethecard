@@ -6,11 +6,13 @@
  */
 
 import { createServer } from "node:http";
-import { WebSocketServer } from "ws";
-import { Router } from "./router.js";
-import { handleControllerWebSocket } from "./presentation/ws/controller-ws.js";
-import { handleCardhostWebSocket } from "./presentation/ws/cardhost-ws.js";
+
 import { createLogger } from "@remote-apdu/shared";
+import { WebSocketServer } from "ws";
+
+import { handleCardhostWebSocket } from "./presentation/ws/cardhost-ws.js";
+import { handleControllerWebSocket } from "./presentation/ws/controller-ws.js";
+import { Router } from "./router.js";
 
 const logger = createLogger("router:server");
 

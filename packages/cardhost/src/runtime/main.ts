@@ -7,12 +7,13 @@
  * Spec: docs/what-to-make.md Section 3.5 - 共通項
  */
 
+import { PcscPlatformManager } from "@aokiapp/jsapdu-pcsc";
+
 import {
   CardhostService,
   ConfigManager,
   MockSmartCardPlatform,
 } from "../lib/index.js";
-import { PcscPlatformManager } from "@aokiapp/jsapdu-pcsc";
 
 /**
  * Parse command line arguments

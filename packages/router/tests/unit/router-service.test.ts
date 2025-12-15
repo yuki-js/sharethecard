@@ -6,9 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+
 import { Router } from "../../src/router.js";
-import { generateEd25519KeyPair, signChallenge } from "../helpers/crypto.js";
 import { authenticateController, authenticateCardhost } from "../helpers/auth-helpers.js";
+import { generateEd25519KeyPair, signChallenge } from "../helpers/crypto.js";
 
 describe("Router", () => {
   let router: Router;

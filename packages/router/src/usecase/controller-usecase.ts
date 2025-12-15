@@ -7,9 +7,9 @@
  * 2. Identification: Session token for cardhost connection (via SessionService)
  */
 
-import { SessionService } from "../service/session-service.js";
-import { ControllerAuthService } from "../service/controller-auth-service.js";
-import { AuthService } from "../service/auth-service.js";
+import type { AuthService } from "../service/auth-service.js";
+import type { ControllerAuthService } from "../service/controller-auth-service.js";
+import type { SessionService } from "../service/session-service.js";
 import type { SessionToken } from "../shared/types.js";
 
 export class ControllerUseCase {
