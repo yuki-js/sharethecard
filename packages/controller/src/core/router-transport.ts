@@ -68,7 +68,7 @@ export class WsAuthenticator {
         .register("connected", (c, msg: any) => this.handleConnected(c, msg))
         .register("error", (c, msg: any) => this.handleError(c, msg, reject));
 
-      (this.ws as any).on("open", async () => {
+      this.ws.on("open", async () => {
         try {
           // auth-init 送信
           await ctx.send({
@@ -80,7 +80,7 @@ export class WsAuthenticator {
         }
       });
 
-      (this.ws as any).on("message", async (data: any) => {
+      this.ws.on("message", async (data: any) => {
         try {
           // data is normalized in shared WsContextImpl
           const msg = JSON.parse(data.toString());
@@ -92,11 +92,11 @@ export class WsAuthenticator {
         }
       });
 
-      (this.ws as any).on("error", (err: Error) => {
+      this.ws.on("error", (err: Error) => {
         reject(err);
       });
 
-      (this.ws as any).on("close", () => {
+      this.ws.on("close", () => {
         if (!this.connected) {
           reject(new Error("WebSocket closed before connection established"));
         }
@@ -212,12 +212,13 @@ export class WsAuthenticator {
    * クローズ
    */
   async close(): Promise<void> {
-    if (this.ws) {
-      return new Promise((resolve) => {
-        (this.ws as any).once("close", resolve);
-        this.ws!.close();
-      });
-    }
+    return new Promise((resolve) => {
+      if (!this.ws) {
+        return resolve();
+      }
+      this.ws.once("close", resolve);
+      this.ws.close();
+    });
   }
 }
 
@@ -302,7 +303,7 @@ export class RouterClientTransport implements ClientTransport {
     this.ws = this.config.authenticator.getWebSocket();
 
     // RPC メッセージハンドリング設定
-    (this.ws as any).on("message", async (data: any) => {
+    this.ws.on("message", async (data: any) => {
       await this.handleMessage(data);
     });
 
@@ -353,9 +354,7 @@ export class RouterClientTransport implements ClientTransport {
    */
   isConnected(): boolean {
     return (
-      this.connected &&
-      this.ws !== null &&
-      this.ws.readyState === 1 // WebSocket.OPEN
+      this.connected && this.ws !== null && this.ws.readyState === 1 // WebSocket.OPEN
     );
   }
 }

@@ -4,7 +4,7 @@
  * - Node-specific runtime (ws) lives in the Cardhost package
  */
 
-import type { WebSocket } from "ws";
+import { WebSocket } from "ws";
 
 /**
  * Base envelope for message routing.
@@ -40,9 +40,9 @@ export interface WsContext<T extends WsContextState = WsContextState> {
 /**
  * WsContext implementation for Node 'ws'
  */
-export class WsContextImpl<T extends WsContextState = WsContextState>
-  implements WsContext<T>
-{
+export class WsContextImpl<
+  T extends WsContextState = WsContextState,
+> implements WsContext<T> {
   private pendingMessages = new Map<string, (msg: BaseMessage) => void>();
   private pendingIds = new Map<string, (msg: BaseMessage) => void>();
   private messageListenerAttached = false;
@@ -89,7 +89,7 @@ export class WsContextImpl<T extends WsContextState = WsContextState>
   }
 
   async send(message: BaseMessage): Promise<void> {
-    if (this.closed || this.ws.readyState !== (this.ws.constructor as any).OPEN) {
+    if (this.closed || this.ws.readyState !== WebSocket.OPEN) {
       // Do not throw synchronously; let ws callback handle async error
     }
     return new Promise((resolve, reject) => {
@@ -139,7 +139,7 @@ export class WsContextImpl<T extends WsContextState = WsContextState>
   async close(code = 1000, reason = ""): Promise<void> {
     this.closed = true;
     return new Promise((resolve) => {
-      const CLOSED = (this.ws.constructor as any).CLOSED ?? 3; // compat: ws.CLOSED === 3
+      const CLOSED = WebSocket.CLOSED ?? 3; // compat: ws.CLOSED === 3
       if (this.ws.readyState === CLOSED) {
         resolve();
         return;
@@ -155,7 +155,7 @@ export class WsContextImpl<T extends WsContextState = WsContextState>
   }
 
   isOpen(): boolean {
-    const OPEN = (this.ws.constructor as any).OPEN ?? 1; // compat: ws.OPEN === 1
+    const OPEN = WebSocket.OPEN ?? 1; // compat: ws.OPEN === 1
     return !this.closed && this.ws.readyState === OPEN;
   }
 }
