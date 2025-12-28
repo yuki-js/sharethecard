@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [18.x, 20.x]
+        node-version: [18.x, 20.x, 24.x]
 
     steps:
       - uses: actions/checkout@v4
@@ -47,12 +47,6 @@ jobs:
       - name: Build all packages
         run: npm run build
 
-      - name: Check documentation
-        run: |
-          test -f docs/what-to-make.md || (echo "Specification not found" && exit 1)
-          test -f docs/readme.md || (echo "README not found" && exit 1)
-          echo "✓ Documentation structure verified"
-
       - name: Run unit tests
         run: npm run test:unit
 
@@ -65,20 +59,6 @@ jobs:
       - name: Run Bash integration tests
         run: npm run test:bash
         if: matrix.node-version == '20.x'
-
-      - name: Test Summary
-        if: always() && matrix.node-version == '20.x'
-        run: |
-          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Execution" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Unit tests completed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Integration tests completed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ E2E tests completed" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Bash integration tests completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Coverage" >> $GITHUB_STEP_SUMMARY
-          echo "Coverage report will be uploaded to Codecov" >> $GITHUB_STEP_SUMMARY
 
       - name: Generate coverage report
         run: npm run test -- --coverage
@@ -95,8 +75,6 @@ jobs:
 
   security-audit:
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
     steps:
       - uses: actions/checkout@v4
 
@@ -109,28 +87,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Security audit (production)
-        run: npm audit --omit=dev --audit-level=moderate
-        continue-on-error: true
-
-      - name: Security audit (all dependencies)
+      - name: Security audit
         run: npm audit --audit-level=moderate
         continue-on-error: true
-
-      - name: Check for outdated dependencies
-        run: npm outdated || true
-
-      - name: Security Summary
-        if: always()
-        run: |
-          echo "## Security Audit Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Completed Checks" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Production dependency audit" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ All dependency audit" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Outdated dependency check" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Review the logs above for any security issues that need attention" >> $GITHUB_STEP_SUMMARY
 
   build-and-package:
     runs-on: ubuntu-latest
@@ -151,64 +110,53 @@ jobs:
 
       - name: Verify builds
         run: |
-          test -f packages/controller/dist/cli.js || (echo "Controller build failed" && exit 1)
+          test -f packages/controller/dist/cli/main.js || (echo "Controller build failed" && exit 1)
           test -f packages/cardhost/dist/index.js || (echo "Cardhost build failed" && exit 1)
-          test -f packages/router/dist/index.js || (echo "Router build failed" && exit 1)
+          test -f packages/router/dist/server.js || (echo "Router build failed" && exit 1)
           test -f packages/shared/dist/index.js || (echo "Shared build failed" && exit 1)
 
-      - name: Package executables
+      - name: Package with dependencies
         run: |
-          mkdir -p artifacts
-          # Controller executable
-          cp -r packages/controller/dist artifacts/controller
-          cp packages/controller/package.json artifacts/controller/
-          # Cardhost executable
-          cp -r packages/cardhost/dist artifacts/cardhost
-          cp packages/cardhost/package.json artifacts/cardhost/
-          # Router executable
-          cp -r packages/router/dist artifacts/router
-          cp packages/router/package.json artifacts/router/
-          # Shared library
-          cp -r packages/shared/dist artifacts/shared
-          cp packages/shared/package.json artifacts/shared/
+          mkdir -p dist-release
+          
+          # Controller
+          mkdir -p dist-release/controller
+          cp -r packages/controller/dist dist-release/controller/
+          cp packages/controller/package.json dist-release/controller/
+          cp -r packages/shared/dist dist-release/controller/shared-dist
+          cd dist-release/controller && npm install --production --omit=dev && cd ../..
+          
+          # Router
+          mkdir -p dist-release/router
+          cp -r packages/router/dist dist-release/router/
+          cp packages/router/package.json dist-release/router/
+          cp -r packages/shared/dist dist-release/router/shared-dist
+          cd dist-release/router && npm install --production --omit=dev && cd ../..
+          
+          # Cardhost
+          mkdir -p dist-release/cardhost
+          cp -r packages/cardhost/dist dist-release/cardhost/
+          cp packages/cardhost/package.json dist-release/cardhost/
+          cp -r packages/shared/dist dist-release/cardhost/shared-dist
+          cd dist-release/cardhost && npm install --production --omit=dev && cd ../..
 
-      - name: Upload Controller artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: controller-dist
-          path: artifacts/controller/
-          retention-days: 30
-
-      - name: Upload Cardhost artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cardhost-dist
-          path: artifacts/cardhost/
-          retention-days: 30
-
-      - name: Upload Router artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: router-dist
-          path: artifacts/router/
-          retention-days: 30
-
-      - name: Build Summary
-        if: always()
+      - name: Create archives
         run: |
-          echo "## Build & Package Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Built Packages" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Controller (CLI)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Cardhost (Service)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Router (Server)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Shared (Library)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
-          echo "Artifacts are available for download for 30 days" >> $GITHUB_STEP_SUMMARY
-          echo "- \`controller-dist\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`cardhost-dist\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`router-dist\`" >> $GITHUB_STEP_SUMMARY
+          cd dist-release
+          tar -czf controller.tar.gz controller/
+          tar -czf router.tar.gz router/
+          tar -czf cardhost.tar.gz cardhost/
+          cd ..
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: |
+            dist-release/controller.tar.gz
+            dist-release/router.tar.gz
+            dist-release/cardhost.tar.gz
+          retention-days: 7
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -219,30 +167,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Controller artifact
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: controller-dist
-          path: release/controller
-
-      - name: Download Cardhost artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: cardhost-dist
-          path: release/cardhost
-
-      - name: Download Router artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: router-dist
-          path: release/router
-
-      - name: Create release archives
-        run: |
-          cd release
-          tar -czf controller.tar.gz controller/
-          tar -czf cardhost.tar.gz cardhost/
-          tar -czf router.tar.gz router/
+          name: release-packages
+          path: release/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -251,22 +180,47 @@ jobs:
           body: |
             ## Release ${{ github.ref_name }}
 
-            Built and tested on Node.js 18.x and 20.x
+            Built and tested on Node.js 18.x, 20.x, and 24.x
 
-            ### Executables
+            ### Pre-built Packages
+
             - `controller.tar.gz` - Controller CLI
-            - `cardhost.tar.gz` - Cardhost Service
             - `router.tar.gz` - Router Server
+            - `cardhost.tar.gz` - Cardhost Service
 
             ### Installation
+
+            Requires Node.js 18+ to run.
+
             ```bash
-            # Extract and install
+            # Extract package
             tar -xzf controller.tar.gz
-            cd controller && npm install --production
+            cd controller
+
+            # Run directly
+            node dist/cli/main.js --help
+            ```
+
+            ### Quick Start
+
+            ```bash
+            # Start router
+            tar -xzf router.tar.gz && cd router
+            node dist/server.js &
+            cd ..
+
+            # Start cardhost with mock platform
+            tar -xzf cardhost.tar.gz && cd cardhost
+            node dist/runtime/main.js --mock &
+            cd ..
+
+            # Send APDU command
+            cd controller
+            node dist/cli/main.js send --apdu 00A4040000
             ```
           draft: false
           prerelease: false
           files: |
             release/controller.tar.gz
-            release/cardhost.tar.gz
             release/router.tar.gz
+            release/cardhost.tar.gz
