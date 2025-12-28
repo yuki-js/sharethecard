@@ -34,13 +34,12 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@aokiapp'
+
+      - name: Configure npm authentication
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
 
       - name: Install dependencies
         run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Type checking
         run: npm run typecheck
@@ -93,13 +92,12 @@ jobs:
         with:
           node-version: "20.x"
           cache: "npm"
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@aokiapp'
+
+      - name: Configure npm authentication
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
 
       - name: Install dependencies
         run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Security audit
         run: npm audit --audit-level=moderate
@@ -118,13 +116,12 @@ jobs:
         with:
           node-version: "20.x"
           cache: "npm"
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@aokiapp'
+
+      - name: Configure npm authentication
+        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
 
       - name: Install dependencies
         run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build all packages
         run: npm run build
@@ -138,6 +135,9 @@ jobs:
 
       - name: Package with dependencies
         run: |
+          # Configure npm auth for package installations
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          
           mkdir -p dist-release
           
           # Controller
@@ -145,6 +145,7 @@ jobs:
           cp -r packages/controller/dist dist-release/controller/
           cp packages/controller/package.json dist-release/controller/
           cp -r packages/shared/dist dist-release/controller/shared-dist
+          cp .npmrc dist-release/controller/
           cd dist-release/controller && npm install --production --omit=dev && cd ../..
           
           # Router
@@ -152,6 +153,7 @@ jobs:
           cp -r packages/router/dist dist-release/router/
           cp packages/router/package.json dist-release/router/
           cp -r packages/shared/dist dist-release/router/shared-dist
+          cp .npmrc dist-release/router/
           cd dist-release/router && npm install --production --omit=dev && cd ../..
           
           # Cardhost
@@ -159,12 +161,14 @@ jobs:
           cp -r packages/cardhost/dist dist-release/cardhost/
           cp packages/cardhost/package.json dist-release/cardhost/
           cp -r packages/shared/dist dist-release/cardhost/shared-dist
+          cp .npmrc dist-release/cardhost/
           cd dist-release/cardhost && npm install --production --omit=dev && cd ../..
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create archives
         run: |
           cd dist-release
+          # Remove .npmrc files with auth tokens before archiving
+          rm -f controller/.npmrc router/.npmrc cardhost/.npmrc
           tar -czf controller.tar.gz controller/
           tar -czf router.tar.gz router/
           tar -czf cardhost.tar.gz cardhost/
