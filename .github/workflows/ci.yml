@@ -36,7 +36,9 @@ jobs:
           cache: "npm"
 
       - name: Configure npm authentication
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+        run: printf '//npm.pkg.github.com/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" >> .npmrc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: npm ci
@@ -94,7 +96,9 @@ jobs:
           cache: "npm"
 
       - name: Configure npm authentication
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+        run: printf '//npm.pkg.github.com/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" >> .npmrc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: npm ci
@@ -118,7 +122,9 @@ jobs:
           cache: "npm"
 
       - name: Configure npm authentication
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+        run: printf '//npm.pkg.github.com/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" >> .npmrc
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: npm ci
@@ -136,7 +142,7 @@ jobs:
       - name: Package with dependencies
         run: |
           # Configure npm auth for package installations
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          printf '//npm.pkg.github.com/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" >> .npmrc
           
           mkdir -p dist-release
           
@@ -163,6 +169,8 @@ jobs:
           cp -r packages/shared/dist dist-release/cardhost/shared-dist
           cp .npmrc dist-release/cardhost/
           cd dist-release/cardhost && npm install --production --omit=dev && cd ../..
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create archives
         run: |
