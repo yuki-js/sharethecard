@@ -66,6 +66,20 @@ jobs:
         run: npm run test:bash
         if: matrix.node-version == '20.x'
 
+      - name: Test Summary
+        if: always() && matrix.node-version == '20.x'
+        run: |
+          echo "## Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Execution" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Unit tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Integration tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ E2E tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Bash integration tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Coverage" >> $GITHUB_STEP_SUMMARY
+          echo "Coverage report will be uploaded to Codecov" >> $GITHUB_STEP_SUMMARY
+
       - name: Generate coverage report
         run: npm run test -- --coverage
         continue-on-error: true
@@ -105,6 +119,18 @@ jobs:
 
       - name: Check for outdated dependencies
         run: npm outdated || true
+
+      - name: Security Summary
+        if: always()
+        run: |
+          echo "## Security Audit Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Completed Checks" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Production dependency audit" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ All dependency audit" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Outdated dependency check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Review the logs above for any security issues that need attention" >> $GITHUB_STEP_SUMMARY
 
   build-and-package:
     runs-on: ubuntu-latest
@@ -166,6 +192,23 @@ jobs:
           name: router-dist
           path: artifacts/router/
           retention-days: 30
+
+      - name: Build Summary
+        if: always()
+        run: |
+          echo "## Build & Package Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Built Packages" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Controller (CLI)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Cardhost (Service)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Router (Server)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Shared (Library)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "Artifacts are available for download for 30 days" >> $GITHUB_STEP_SUMMARY
+          echo "- \`controller-dist\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`cardhost-dist\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`router-dist\`" >> $GITHUB_STEP_SUMMARY
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

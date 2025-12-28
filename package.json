@@ -27,7 +27,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
-    "prepare": "npm run build -ws"
+    "prepare": "npm run build -ws",
+    "validate": "bash scripts/pre-push.sh"
   },
   "devDependencies": {
     "@types/node": "^20.14.9",
