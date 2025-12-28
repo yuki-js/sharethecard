@@ -22,6 +22,8 @@
     "test:unit": "vitest --run --dir tests/unit",
     "test:integration": "vitest --run --dir tests/integration",
     "test:e2e": "vitest --run --dir tests/e2e",
+    "test:bash": "bash tests/bash/run-all-tests.sh",
+    "test:all": "npm run test && npm run test:bash",
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",

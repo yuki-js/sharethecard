@@ -11,6 +11,11 @@ on:
       - develop
   workflow_dispatch:
 
+# Cancel in-progress runs for the same workflow on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -42,6 +47,12 @@ jobs:
       - name: Build all packages
         run: npm run build
 
+      - name: Check documentation
+        run: |
+          test -f docs/what-to-make.md || (echo "Specification not found" && exit 1)
+          test -f docs/readme.md || (echo "README not found" && exit 1)
+          echo "✓ Documentation structure verified"
+
       - name: Run unit tests
         run: npm run test:unit
 
@@ -50,6 +61,10 @@ jobs:
 
       - name: Run E2E tests
         run: npm run test:e2e
+
+      - name: Run Bash integration tests
+        run: npm run test:bash
+        if: matrix.node-version == '20.x'
 
       - name: Generate coverage report
         run: npm run test -- --coverage
@@ -66,6 +81,8 @@ jobs:
 
   security-audit:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
     steps:
       - uses: actions/checkout@v4
 
@@ -78,11 +95,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Security audit
+      - name: Security audit (production)
+        run: npm audit --omit=dev --audit-level=moderate
+        continue-on-error: true
+
+      - name: Security audit (all dependencies)
         run: npm audit --audit-level=moderate
         continue-on-error: true
 
-  build-examples:
+      - name: Check for outdated dependencies
+        run: npm outdated || true
+
+  build-and-package:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -106,49 +130,100 @@ jobs:
           test -f packages/router/dist/index.js || (echo "Router build failed" && exit 1)
           test -f packages/shared/dist/index.js || (echo "Shared build failed" && exit 1)
 
-  documentation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check documentation exists
+      - name: Package executables
         run: |
-          test -f docs/what-to-make.md || (echo "Specification not found" && exit 1)
-          test -f docs/readme.md || (echo "README not found" && exit 1)
+          mkdir -p artifacts
+          # Controller executable
+          cp -r packages/controller/dist artifacts/controller
+          cp packages/controller/package.json artifacts/controller/
+          # Cardhost executable
+          cp -r packages/cardhost/dist artifacts/cardhost
+          cp packages/cardhost/package.json artifacts/cardhost/
+          # Router executable
+          cp -r packages/router/dist artifacts/router
+          cp packages/router/package.json artifacts/router/
+          # Shared library
+          cp -r packages/shared/dist artifacts/shared
+          cp packages/shared/package.json artifacts/shared/
 
-      - name: Verify documentation structure
-        run: |
-          echo "✓ Documentation structure verified"
+      - name: Upload Controller artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: controller-dist
+          path: artifacts/controller/
+          retention-days: 30
+
+      - name: Upload Cardhost artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardhost-dist
+          path: artifacts/cardhost/
+          retention-days: 30
+
+      - name: Upload Router artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: router-dist
+          path: artifacts/router/
+          retention-days: 30
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-and-test, security-audit, build-examples]
+    needs: [build-and-test, security-audit, build-and-package]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Download Controller artifact
+        uses: actions/download-artifact@v4
         with:
-          node-version: "20.x"
-          cache: "npm"
+          name: controller-dist
+          path: release/controller
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Download Cardhost artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cardhost-dist
+          path: release/cardhost
 
-      - name: Build
-        run: npm run build
+      - name: Download Router artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: router-dist
+          path: release/router
+
+      - name: Create release archives
+        run: |
+          cd release
+          tar -czf controller.tar.gz controller/
+          tar -czf cardhost.tar.gz cardhost/
+          tar -czf router.tar.gz router/
 
       - name: Create GitHub Release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
+          name: Release ${{ github.ref_name }}
           body: |
-            ## Release ${{ github.ref }}
+            ## Release ${{ github.ref_name }}
 
             Built and tested on Node.js 18.x and 20.x
+
+            ### Executables
+            - `controller.tar.gz` - Controller CLI
+            - `cardhost.tar.gz` - Cardhost Service
+            - `router.tar.gz` - Router Server
+
+            ### Installation
+            ```bash
+            # Extract and install
+            tar -xzf controller.tar.gz
+            cd controller && npm install --production
+            ```
           draft: false
           prerelease: false
+          files: |
+            release/controller.tar.gz
+            release/cardhost.tar.gz
+            release/router.tar.gz
