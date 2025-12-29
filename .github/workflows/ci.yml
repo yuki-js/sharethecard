@@ -141,9 +141,6 @@ jobs:
 
       - name: Package with dependencies
         run: |
-          # Configure npm auth for package installations
-          printf '//npm.pkg.github.com/:_authToken=%s\n' "${NODE_AUTH_TOKEN}" >> .npmrc
-          
           mkdir -p dist-release
           
           # Controller
@@ -169,8 +166,6 @@ jobs:
           cp -r packages/shared/dist dist-release/cardhost/shared-dist
           cp .npmrc dist-release/cardhost/
           cd dist-release/cardhost && npm install --production --omit=dev && cd ../..
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create archives
         run: |
