@@ -7,8 +7,7 @@
  * or decrypt the payload content.
  */
 
-import type { ConnectionRepository} from "../repository/connection-repository.js";
-import { type ConnectionData } from "../repository/connection-repository.js";
+import type { ConnectionRepository, ConnectionData } from "../repository/connection-repository.js";
 
 export interface PendingRequest {
   resolve: (data: unknown) => void;

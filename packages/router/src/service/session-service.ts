@@ -6,8 +6,7 @@
  * Authentication is handled separately via public key cryptography.
  */
 
-import type { SessionRepository} from "../repository/session-repository.js";
-import { type SessionData } from "../repository/session-repository.js";
+import type { SessionRepository, SessionData } from "../repository/session-repository.js";
 import { generateRandomBase64 } from "../shared/random.js";
 import type { SessionToken } from "../shared/types.js";
 
